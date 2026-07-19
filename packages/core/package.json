@@ -1,0 +1,22 @@
+{
+  "name": "@poollab/core",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "sideEffects": false,
+  "dependencies": {},
+  "scripts": {
+    "build": "tsc --build",
+    "test": "vitest run",
+    "gen:ticks": "tsx scripts/gen-tick-constants.ts",
+    "gen:golden": "tsx scripts/gen-golden.ts"
+  }
+}

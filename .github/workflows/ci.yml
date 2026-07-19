@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .tool-versions
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm exec biome ci .
+
+      - name: Typecheck
+        run: pnpm exec tsc --build
+
+      - name: Test
+        run: pnpm exec vitest run
+
+      - name: Build
+        run: pnpm -r --stream build
+
+      # The Graph key is a Worker secret. If it ever reaches the client bundle,
+      # anyone can drain it straight from the Network tab.
+      - name: Assert no secrets in the web bundle
+        run: |
+          if grep -rl 'GRAPH_API_KEY' apps/web/dist 2>/dev/null; then
+            echo "::error::GRAPH_API_KEY leaked into the web bundle"
+            exit 1
+          fi
