@@ -10,6 +10,7 @@ export type CoreErrorCode =
   | 'NEGATIVE_AMOUNT'
   | 'CANDLES_NOT_ASCENDING'
   | 'GRID_MISMATCH'
+  | 'UNREPRESENTABLE_POSITION'
   | 'NOT_FINITE';
 
 export class CoreError extends Error {

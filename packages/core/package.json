@@ -12,15 +12,16 @@
     }
   },
   "sideEffects": false,
-  "dependencies": {},
   "scripts": {
     "build": "tsc --build",
     "test": "vitest run",
     "gen:ticks": "tsx scripts/gen-tick-constants.ts",
-    "gen:fixtures": "tsx scripts/capture-fixtures.ts"
+    "gen:fixtures": "tsx scripts/capture-fixtures.ts",
+    "gen:burns": "tsx scripts/capture-burns.ts"
   },
   "devDependencies": {
     "@uniswap/sdk-core": "^7.18.0",
-    "@uniswap/v3-sdk": "^3.31.0"
+    "@uniswap/v3-sdk": "^3.31.0",
+    "viem": "^2.55.4"
   }
 }
