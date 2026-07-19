@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "dist-tools",
+    "noEmit": false,
+    "emitDeclarationOnly": true,
+    "types": ["node"]
+  },
+  "include": ["scripts/**/*.ts", "test/**/*.ts", "test/**/*.json"],
+  "references": [{ "path": "./tsconfig.json" }]
+}

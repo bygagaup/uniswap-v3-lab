@@ -39,15 +39,30 @@ It is also legally unforkable: upstream (DefiLab-xyz) ships no license at all, s
 math there is all-rights-reserved. Everything here is reimplemented from the Uniswap V3
 whitepaper and the core contracts' published behavior.
 
-## Tick constants
+## Tick math
 
 `src/tickMath.constants.ts` is **generated**, not transcribed. `scripts/gen-tick-constants.ts`
-computes `floor(1.0001^(-2^i/2) · 2^128)` from first principles at 256-bit working precision.
-A test re-runs the generator and asserts the committed file is byte-identical. Do not hand-edit.
+computes `round(2^128 / 1.0001^(2^i/2))` from the definition at 1024-bit working precision. A test
+re-runs the generator and asserts the committed file is byte-identical, and pins eight of the
+constants against exactly-computed rationals. Do not hand-edit.
+
+**The rounding mode is load-bearing.** The table is rounded to *nearest*, not floored; the two
+differ for most bits (bit 1 is `0x…213a` nearest, `0x…2139` floored). A floored table drifts from
+real pool state. All twenty generated constants match the deployed pools exactly.
+
+`getSqrtRatioAtTick` reproduces the pool's bit-decomposition *including its rounding*, because
+pool and position state is defined by that result — a "more accurate" value would disagree with
+the chain, which is the wrong kind of correct.
 
 `getTickAtSqrtRatio` is a binary search over `getSqrtRatioAtTick`, not a port of the contract's
 log2 approximation. The approximation exists because gas costs money; we are in a browser, and
 21 iterations of obviously-correct code is worth more than the microseconds.
+
+**One deliberate divergence from the pool and the SDK:** both require
+`sqrtPriceX96 < MAX_SQRT_RATIO`, since a live pool can never sit at the maximum. We accept it, so
+`getTickAtSqrtRatio ∘ getSqrtRatioAtTick` is the identity over *every* tick — the totality that
+the round-trip property and everything built on it rely on. A simulator evaluates the boundary;
+a pool never reaches it. `test/differential/v3-sdk.test.ts` pins this as a decision, not a drift.
 
 ## Testing layers
 
