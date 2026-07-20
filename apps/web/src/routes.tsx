@@ -18,6 +18,7 @@ const rootRoute = createRootRoute({
     <div className="app">
       <header className="topbar">
         <h1>PoolLab</h1>
+        <span className="tagline">Uniswap V3 LP strategy simulator &amp; backtester</span>
         <span className="spacer" />
         <ThemeToggle />
       </header>
@@ -42,9 +43,12 @@ function HomePage() {
     chainsQuery.data?.find((c) => c.slug === search.chain)?.capabilities.includes('feeGrowth'),
   );
 
-  // Every state change is a URL change — the address bar is the store.
+  // Every state change is a URL change — the address bar is the store. Tuning a
+  // parameter must NOT jump the page to the top, so every search-only navigation
+  // passes resetScroll: false; only picking a new pool scrolls back up.
   const setChain = (chain: ChainSlug) =>
     navigate({
+      resetScroll: false,
       search: (prev: Search) => ({
         ...prev,
         chain,
@@ -54,7 +58,11 @@ function HomePage() {
       }),
     });
   const setQuery = (q: string) =>
-    navigate({ search: (prev: Search) => ({ ...prev, q: q || undefined }), replace: true });
+    navigate({
+      resetScroll: false,
+      replace: true,
+      search: (prev: Search) => ({ ...prev, q: q || undefined }),
+    });
   // A new pool clears the range/orientation so they default to the new pool.
   const selectPool = (pool: Pool) =>
     navigate({
@@ -68,13 +76,24 @@ function HomePage() {
 
   const strategyHandlers = {
     onNotional: (notional: number) =>
-      navigate({ search: (prev: Search) => ({ ...prev, notional }) }),
+      navigate({ resetScroll: false, search: (prev: Search) => ({ ...prev, notional }) }),
     onRange: (lower: number, upper: number) =>
-      navigate({ search: (prev: Search) => ({ ...prev, lower, upper }) }),
-    onToggleInvert: () => navigate({ search: (prev: Search) => ({ ...prev, inv: !prev.inv }) }),
-    onLeverage: (lev: number) => navigate({ search: (prev: Search) => ({ ...prev, lev }) }),
+      navigate({ resetScroll: false, search: (prev: Search) => ({ ...prev, lower, upper }) }),
+    onToggleInvert: () =>
+      navigate({ resetScroll: false, search: (prev: Search) => ({ ...prev, inv: !prev.inv }) }),
+    onLeverage: (lev: number) =>
+      navigate({ resetScroll: false, search: (prev: Search) => ({ ...prev, lev }) }),
     onHedge: (hedge: 'none' | 'long' | 'short') =>
-      navigate({ search: (prev: Search) => ({ ...prev, hedge }) }),
+      navigate({ resetScroll: false, search: (prev: Search) => ({ ...prev, hedge }) }),
+    onCompare: (range: { lower: number; upper: number } | null) =>
+      navigate({
+        resetScroll: false,
+        search: (prev: Search) => ({
+          ...prev,
+          lower2: range?.lower,
+          upper2: range?.upper,
+        }),
+      }),
   };
 
   return (
@@ -114,6 +133,8 @@ function HomePage() {
                 leverage: search.lev,
                 hedgeSide: search.hedge,
                 hedgePct: search.hedgePct,
+                lower2: search.lower2,
+                upper2: search.upper2,
               }}
               handlers={strategyHandlers}
               canBacktest={canBacktest}

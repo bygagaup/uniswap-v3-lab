@@ -60,6 +60,13 @@ export interface StrategyModel {
   readonly notional: number;
   readonly leverage: number;
   readonly hedge: Hedge;
+  /** A second comparison range (S2), when both bounds are set. */
+  readonly compare: {
+    readonly range: TickRange;
+    readonly lowerPrice: number;
+    readonly upperPrice: number;
+    readonly curve: readonly CurvePoint[];
+  } | null;
   /** The equity payoff overlay + liquidation bands, present only when levered or hedged. */
   readonly levered: {
     readonly curve: readonly LeveredPoint[];
@@ -75,6 +82,8 @@ export interface ModelInput {
   readonly leverage?: number;
   readonly hedgeSide?: 'none' | 'long' | 'short';
   readonly hedgePct?: number;
+  readonly lower2?: number | undefined;
+  readonly upper2?: number | undefined;
 }
 
 /** ~±15% expressed in ticks, the default half-width when a range isn't set. */
@@ -126,7 +135,17 @@ export function buildModel(pool: Pool, rawInput: ModelInput): ModelResult {
       input.upper ?? roundTick((currentTick + DEFAULT_HALF_WIDTH) as Tick, spacing, 'up');
     const range = tickRange(lower as Tick, upper as Tick);
 
-    const grid = priceGrid({ scale, currentPrice: entryPrice, ranges: [range] });
+    // A second comparison range, only when both bounds are supplied.
+    const range2 =
+      input.lower2 !== undefined && input.upper2 !== undefined
+        ? tickRange(input.lower2 as Tick, input.upper2 as Tick)
+        : null;
+
+    const grid = priceGrid({
+      scale,
+      currentPrice: entryPrice,
+      ranges: range2 ? [range, range2] : [range],
+    });
     const shared = { scale, notional: input.notional, entryPrice, grid } as const;
 
     const curves = {
@@ -175,6 +194,15 @@ export function buildModel(pool: Pool, rawInput: ModelInput): ModelResult {
           })()
         : null;
 
+    const compare = range2
+      ? {
+          range: range2,
+          lowerPrice: priceAtTick(scale, range2.lower),
+          upperPrice: priceAtTick(scale, range2.upper),
+          curve: payoffCurve({ ...shared, strategy: { kind: 'v3', range: range2 } }),
+        }
+      : null;
+
     return {
       ok: true,
       model: {
@@ -197,6 +225,7 @@ export function buildModel(pool: Pool, rawInput: ModelInput): ModelResult {
         leverage: input.leverage,
         hedge,
         levered,
+        compare,
       },
     };
   } catch (error) {

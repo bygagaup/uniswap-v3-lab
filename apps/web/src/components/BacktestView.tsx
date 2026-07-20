@@ -7,9 +7,19 @@ import { formatUsd } from '../lib/format.js';
 import type { StrategyModel } from '../lib/model.js';
 import { useWidth } from '../lib/useWidth.js';
 
-function Tile({ label, value, tone }: { label: string; value: string; tone?: 'pos' | 'neg' }) {
+function Tile({
+  label,
+  value,
+  tone,
+  hint,
+}: {
+  label: string;
+  value: string;
+  tone?: 'pos' | 'neg';
+  hint?: string;
+}) {
   return (
-    <div className="stat-tile">
+    <div className="stat-tile" title={hint}>
       <div className="label">{label}</div>
       <div
         className="value"
@@ -139,17 +149,28 @@ export function BacktestView({
                 label="Fee APR"
                 value={`${(result.summary.apr * 100).toFixed(1)}%`}
                 tone="pos"
+                hint="Fee ROI annualised over the backtest window. Fees only — excludes price movement."
               />
-              <Tile label="Fees earned" value={formatUsd(result.summary.feeUsd, false)} />
-              <Tile label="Fee ROI" value={`${(result.summary.feeRoi * 100).toFixed(2)}%`} />
+              <Tile
+                label="Fees earned"
+                value={formatUsd(result.summary.feeUsd, false)}
+                hint="Total swap fees the position would have earned over the last 30 days."
+              />
+              <Tile
+                label="Fee ROI"
+                value={`${(result.summary.feeRoi * 100).toFixed(2)}%`}
+                hint="Fees earned as a fraction of the position's value at the start of the window."
+              />
               <Tile
                 label="Time in range"
                 value={`${(result.summary.avgActiveBps / 100).toFixed(0)}%`}
+                hint="Share of the window the price stayed inside the range and the position earned fees."
               />
               <Tile
                 label="Total return"
                 value={`${(result.summary.totalReturn * 100).toFixed(2)}%`}
                 tone={result.summary.totalReturn >= 0 ? 'pos' : 'neg'}
+                hint="Fees plus the change in the position's asset value over the window."
               />
             </div>
             <CumulativeFeeChart rows={result.rows} width={width} />

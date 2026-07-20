@@ -33,6 +33,8 @@ export interface StrategyHandlers {
   onToggleInvert: () => void;
   onLeverage: (lev: number) => void;
   onHedge: (side: 'none' | 'long' | 'short') => void;
+  /** null clears the S2 comparison range. */
+  onCompare: (range: { lower: number; upper: number } | null) => void;
 }
 
 export function StrategyView({
@@ -58,10 +60,23 @@ export function StrategyView({
     leverage = 1,
     hedgeSide = 'none',
     hedgePct = 0.5,
+    lower2,
+    upper2,
   } = input;
   const result = useMemo(
-    () => buildModel(pool, { notional, lower, upper, inverted, leverage, hedgeSide, hedgePct }),
-    [pool, notional, lower, upper, inverted, leverage, hedgeSide, hedgePct],
+    () =>
+      buildModel(pool, {
+        notional,
+        lower,
+        upper,
+        inverted,
+        leverage,
+        hedgeSide,
+        hedgePct,
+        lower2,
+        upper2,
+      }),
+    [pool, notional, lower, upper, inverted, leverage, hedgeSide, hedgePct, lower2, upper2],
   );
   const [payoffRef, payoffWidth] = useWidth<HTMLDivElement>();
   const [ilRef, ilWidth] = useWidth<HTMLDivElement>();
@@ -100,6 +115,32 @@ export function StrategyView({
   const onDragCommit = (edge: 'lower' | 'upper', price: number) => {
     const otherPrice = edge === 'lower' ? model.upperPrice : model.lowerPrice;
     commitPrices(price, otherPrice);
+  };
+
+  // S2 comparison range: convert two prices to snapped, ordered ticks.
+  const commitCompare = (priceA: number, priceB: number) => {
+    const spacing = model.scale.pool.tickSpacing;
+    const toTick = (p: number) =>
+      roundTick(tickAtPrice(model.scale, HumanPrice.of(Math.max(p, 1e-18))), spacing, 'nearest');
+    const t1 = toTick(priceA);
+    const t2 = toTick(priceB);
+    const lo = Math.min(t1, t2);
+    const hi = Math.max(t1, t2);
+    if (lo !== hi) handlers.onCompare({ lower: lo, upper: hi });
+  };
+
+  const toggleCompare = () => {
+    if (model.compare) {
+      handlers.onCompare(null);
+    } else {
+      // Default S2 to a wider range than S1, so the comparison is meaningful.
+      const width = model.range.upper - model.range.lower;
+      const mid = (model.range.lower + model.range.upper) / 2;
+      handlers.onCompare({
+        lower: Math.round(mid - width),
+        upper: Math.round(mid + width),
+      });
+    }
   };
 
   const minPrice = Math.min(model.lowerPrice, model.upperPrice);
@@ -204,6 +245,53 @@ export function StrategyView({
               <div style={{ marginTop: 6, fontVariantNumeric: 'tabular-nums' }}>
                 {liquidationRange(model) ?? <span className="muted">— safe across range</span>}
               </div>
+            </div>
+          )}
+        </div>
+
+        {/* S2 comparison range */}
+        <div style={{ marginTop: 14 }}>
+          <button type="button" className="chip" onClick={toggleCompare}>
+            {model.compare ? 'Remove comparison range' : '+ Compare a second range'}
+          </button>
+          {model.compare && (
+            <div className="strategy-controls" style={{ marginTop: 10 }}>
+              <label>
+                <span className="label">S2 min price</span>
+                <input
+                  type="number"
+                  className="search-input"
+                  value={Number(
+                    Math.min(model.compare.lowerPrice, model.compare.upperPrice).toPrecision(6),
+                  )}
+                  onChange={(e) => {
+                    const p = Number(e.target.value);
+                    const other = Math.max(
+                      model.compare?.lowerPrice ?? 0,
+                      model.compare?.upperPrice ?? 0,
+                    );
+                    if (p > 0) commitCompare(p, other);
+                  }}
+                />
+              </label>
+              <label>
+                <span className="label">S2 max price</span>
+                <input
+                  type="number"
+                  className="search-input"
+                  value={Number(
+                    Math.max(model.compare.lowerPrice, model.compare.upperPrice).toPrecision(6),
+                  )}
+                  onChange={(e) => {
+                    const p = Number(e.target.value);
+                    const other = Math.min(
+                      model.compare?.lowerPrice ?? 0,
+                      model.compare?.upperPrice ?? 0,
+                    );
+                    if (p > 0) commitCompare(other, p);
+                  }}
+                />
+              </label>
             </div>
           )}
         </div>

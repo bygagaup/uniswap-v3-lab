@@ -118,3 +118,28 @@ describe('leverage & hedge', () => {
     expect(r.model.hedge.side).toBe('short');
   });
 });
+
+describe('comparison range (S2)', () => {
+  it('has no compare overlay without a second range', () => {
+    const r = buildModel(USDC_WETH, { notional: 10_000, inverted: false });
+    if (!r.ok) throw new Error(r.error);
+    expect(r.model.compare).toBeNull();
+  });
+
+  it('builds a second V3 curve on the shared grid when S2 is set', () => {
+    const r = buildModel(USDC_WETH, {
+      notional: 10_000,
+      inverted: false,
+      lower: 200_000,
+      upper: 202_000,
+      lower2: 199_000,
+      upper2: 203_000,
+    });
+    if (!r.ok) throw new Error(r.error);
+    expect(r.model.compare).not.toBeNull();
+    expect(r.model.compare?.range.lower).toBe(199_000);
+    expect(r.model.compare?.range.upper).toBe(203_000);
+    // Same grid as the primary curves, so the two are directly comparable.
+    expect(r.model.compare?.curve).toHaveLength(r.model.grid.prices.length);
+  });
+});

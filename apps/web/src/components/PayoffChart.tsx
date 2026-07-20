@@ -39,6 +39,7 @@ export function PayoffChart({
   const xDomain: [number, number] = [prices[0] as number, prices[prices.length - 1] as number];
 
   const leveredValues = model.levered ? model.levered.curve.map((p) => p.value) : [];
+  const compareValues = model.compare ? model.compare.curve.map((p) => p.value) : [];
   const allValues = [
     ...model.curves.v3,
     ...model.curves.v2,
@@ -46,7 +47,7 @@ export function PayoffChart({
     ...model.curves.hodlBase,
   ]
     .map((p) => p.value)
-    .concat(leveredValues);
+    .concat(leveredValues, compareValues);
   const yMax = Math.max(...allValues) * 1.05;
   // The levered equity curve can go negative (toward liquidation); give it room.
   const yMin = Math.min(0, ...leveredValues);
@@ -126,6 +127,20 @@ export function PayoffChart({
               );
             })}
 
+          {/* second-range (S2) band, dimmer and behind */}
+          {model.compare && (
+            <rect
+              x={Math.min(finite(x(model.compare.lowerPrice)), finite(x(model.compare.upperPrice)))}
+              y={0}
+              width={Math.abs(
+                finite(x(model.compare.upperPrice)) - finite(x(model.compare.lowerPrice)),
+              )}
+              height={innerH}
+              fill="var(--text-muted)"
+              opacity={0.08}
+            />
+          )}
+
           {/* range band */}
           <rect
             x={Math.min(lowerX, upperX)}
@@ -187,6 +202,21 @@ export function PayoffChart({
               strokeDasharray={c.dash}
             />
           ))}
+
+          {/* second-range (S2) payoff curve */}
+          {model.compare && (
+            <path
+              d={linePath(
+                model.compare.curve,
+                (pp) => x(pp),
+                (v) => y(v),
+              )}
+              fill="none"
+              stroke="var(--text-muted)"
+              strokeWidth={2}
+              strokeDasharray="6 3"
+            />
+          )}
 
           {/* leveraged equity overlay */}
           {model.levered && (
@@ -257,6 +287,19 @@ export function PayoffChart({
             <span className="muted">{c.label}</span>
           </span>
         ))}
+        {model.compare && (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <span
+              style={{
+                width: 14,
+                height: 0,
+                borderTop: '2px dashed var(--text-muted)',
+                display: 'inline-block',
+              }}
+            />
+            <span className="muted">V3 range S2</span>
+          </span>
+        )}
         {model.levered && (
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
             <span

@@ -8,8 +8,12 @@ position — plus a backtest over hourly data showing accrued fees, fee APR, and
 
 ## Status
 
-Early. Milestone M0 (scaffold, tooling, CI, deploy) is in place; the math core and data layer
-are being built. See `CLAUDE.md` for architecture and the rules the code is held to.
+Feature-complete to parity with the predecessor: pool selection across seven chains, payoff
+curves (V3 range, V2 unbounded, HODL, a second comparison range), impermanent-loss curve,
+liquidity-density depth chart, a 30-day fee backtest, and a leverage/hedge overlay with
+liquidation bands. All simulation state lives in the URL, so any view is shareable.
+
+See `CLAUDE.md` for architecture and the rules the code is held to.
 
 ## Layout
 
