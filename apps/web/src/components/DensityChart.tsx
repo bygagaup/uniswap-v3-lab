@@ -3,6 +3,7 @@ import {
   concentrationIndex,
   type DensityBar,
   finite,
+  Liquidity,
   liquidityDensity,
   type Tick,
 } from '@poollab/core';
@@ -18,10 +19,13 @@ const MARGIN = { top: 12, right: 16, bottom: 28, left: 16 };
 export function DensityChart({
   model,
   ticks,
+  poolLiquidity,
   width,
 }: {
   model: StrategyModel;
   ticks: readonly TickRow[];
+  /** The pool's reported active liquidity, to seed a windowed tick set. */
+  poolLiquidity: string;
   width: number;
 }) {
   // Zoom is a half-width in ticks around the current tick; the buttons scale it.
@@ -39,8 +43,11 @@ export function DensityChart({
       ticks: parsed,
       currentTick: model.currentTick,
       currentSqrtPrice: model.currentSqrtPrice,
+      // Seed with the pool's live liquidity so a truncated (first-1000) tick set
+      // reconstructs correctly outward from the current price.
+      activeLiquidity: Liquidity.of(poolLiquidity),
     });
-  }, [ticks, model.scale, model.currentTick, model.currentSqrtPrice]);
+  }, [ticks, model.scale, model.currentTick, model.currentSqrtPrice, poolLiquidity]);
 
   const window = {
     lower: (model.currentTick - rangeWidth * zoom) as Tick,

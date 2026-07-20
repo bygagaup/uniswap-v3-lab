@@ -38,6 +38,9 @@ function HomePage() {
   const navigate = useNavigate({ from: indexRoute.fullPath });
   const chainsQuery = useChains();
   const poolQuery = usePool(search.chain, search.pool);
+  const canBacktest = Boolean(
+    chainsQuery.data?.find((c) => c.slug === search.chain)?.capabilities.includes('feeGrowth'),
+  );
 
   // Every state change is a URL change — the address bar is the store.
   const setChain = (chain: ChainSlug) =>
@@ -107,6 +110,7 @@ function HomePage() {
                 inverted: search.inv,
               }}
               handlers={strategyHandlers}
+              canBacktest={canBacktest}
             />
           )}
           {poolQuery.isSuccess && !poolQuery.data && (

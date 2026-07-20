@@ -19,12 +19,22 @@ interface TicksResult {
   }[];
 }
 
-export function useTicks(chain: ChainSlug, pool: string | undefined, enabled: boolean) {
+export function useTicks(
+  chain: ChainSlug,
+  pool: string | undefined,
+  currentTick: number,
+  enabled: boolean,
+) {
   return useQuery({
+    // The tick centres the two-sided fetch; round it so nearby ticks share a
+    // cache entry rather than refetching on every sub-tick price move.
     queryKey: ['ticks', chain, pool?.toLowerCase() ?? 'none'],
     enabled: Boolean(pool) && enabled,
     retry: shouldRetry,
     queryFn: () =>
-      graphFetch<TicksResult>(chain, 'ticksByPool', { pool: (pool as string).toLowerCase() }),
+      graphFetch<TicksResult>(chain, 'ticksByPool', {
+        pool: (pool as string).toLowerCase(),
+        tick: currentTick,
+      }),
   });
 }

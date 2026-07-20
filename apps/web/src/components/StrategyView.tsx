@@ -5,6 +5,7 @@ import type { ChainSlug, Pool } from '../api/types.js';
 import { formatPrice, formatUsd } from '../lib/format.js';
 import { buildModel, type ModelInput } from '../lib/model.js';
 import { useWidth } from '../lib/useWidth.js';
+import { BacktestView } from './BacktestView.js';
 import { DensityChart } from './DensityChart.js';
 import { ILChart } from './ILChart.js';
 import { PayoffChart } from './PayoffChart.js';
@@ -21,11 +22,13 @@ export function StrategyView({
   pool,
   input,
   handlers,
+  canBacktest,
 }: {
   chain: ChainSlug;
   pool: Pool;
   input: ModelInput;
   handlers: StrategyHandlers;
+  canBacktest: boolean;
 }) {
   // Destructure so the memo depends on primitives, not the input object identity
   // (which changes every render). Hooks all run before any early return.
@@ -37,7 +40,7 @@ export function StrategyView({
   const [payoffRef, payoffWidth] = useWidth<HTMLDivElement>();
   const [ilRef, ilWidth] = useWidth<HTMLDivElement>();
   const [densityRef, densityWidth] = useWidth<HTMLDivElement>();
-  const ticksQuery = useTicks(chain, pool.id, true);
+  const ticksQuery = useTicks(chain, pool.id, result.ok ? result.model.currentTick : 0, true);
 
   if (!result.ok) {
     return (
@@ -162,10 +165,17 @@ export function StrategyView({
             <p className="placeholder muted">Tick liquidity is unavailable for this pool.</p>
           )}
           {ticksQuery.isSuccess && (
-            <DensityChart model={model} ticks={ticksQuery.data.ticks} width={densityWidth} />
+            <DensityChart
+              model={model}
+              ticks={ticksQuery.data.ticks}
+              poolLiquidity={pool.liquidity}
+              width={densityWidth}
+            />
           )}
         </div>
       </section>
+
+      <BacktestView chain={chain} pool={pool} model={model} canBacktest={canBacktest} />
 
       <section className="card">
         <h2>Impermanent loss vs. HODL</h2>

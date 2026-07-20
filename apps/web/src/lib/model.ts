@@ -14,9 +14,11 @@ import {
   HumanPrice as HumanPriceCtor,
   impermanentLossCurve,
   type Orientation,
+  type Position,
   type PriceGrid,
   type PriceScale,
   payoffCurve,
+  positionFromNotional,
   priceAtTick,
   priceGrid,
   priceScale,
@@ -38,6 +40,7 @@ export interface StrategyModel {
   readonly currentTick: Tick;
   readonly currentSqrtPrice: SqrtPriceX96;
   readonly range: TickRange;
+  readonly position: Position;
   readonly lowerPrice: number;
   readonly upperPrice: number;
   readonly grid: PriceGrid;
@@ -116,6 +119,13 @@ export function buildModel(pool: Pool, input: ModelInput): ModelResult {
       notional: input.notional,
       entryPrice: HumanPriceCtor.of(entryPrice),
     });
+    // The same position the backtest replays — built once, here.
+    const position = positionFromNotional({
+      scale,
+      price: HumanPriceCtor.of(entryPrice),
+      range,
+      notional: input.notional,
+    });
 
     return {
       ok: true,
@@ -128,6 +138,7 @@ export function buildModel(pool: Pool, input: ModelInput): ModelResult {
         currentTick,
         currentSqrtPrice,
         range,
+        position,
         lowerPrice: priceAtTick(scale, range.lower),
         upperPrice: priceAtTick(scale, range.upper),
         grid,

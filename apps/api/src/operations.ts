@@ -128,6 +128,23 @@ function mergePoolLists(data: unknown): unknown {
   return { pools };
 }
 
+/**
+ * Merges the `below`/`above` aliased tick lists into one ascending `ticks`
+ * array, leaving `pools` untouched. Done on the edge so the cached artifact is
+ * exactly what the density chart consumes.
+ */
+function mergeTickLists(data: unknown): unknown {
+  if (typeof data !== 'object' || data === null) return data;
+  const d = data as Record<string, unknown>;
+  const below = Array.isArray(d.below) ? d.below : [];
+  const above = Array.isArray(d.above) ? d.above : [];
+  const ticks = [...below, ...above].sort(
+    (a, b) =>
+      Number((a as { tickIdx: string }).tickIdx) - Number((b as { tickIdx: string }).tickIdx),
+  );
+  return { ticks, pools: d.pools ?? [] };
+}
+
 export const OPERATIONS: Readonly<Record<OpName, Operation>> = {
   poolById: {
     name: 'poolById',
@@ -251,15 +268,25 @@ export const OPERATIONS: Readonly<Record<OpName, Operation>> = {
     name: 'ticksByPool',
     capability: 'ticks',
     cache: { ttl: 60, swr: 300 },
-    variables: z.object({ pool: address }),
-    document: `query TicksByPool($pool: ID!) {
-      ticks(first: 1000, where: { pool: $pool }, orderBy: tickIdx) {
-        tickIdx
-        liquidityGross
-        liquidityNet
-        price0
-        price1
-      }
+    // Centred on the current tick, not started from the bottom: a dense pool has
+    // far more than 1000 initialized ticks below the price, so `first: 1000` from
+    // the low end never reaches it. Fetching 500 below and 500 above the current
+    // tick guarantees the active region is covered. The two aliased lists are
+    // merged on the edge into one ascending `ticks` array.
+    variables: z.object({
+      pool: address,
+      tick: z.coerce.number().int().default(0),
+    }),
+    transform: mergeTickLists,
+    document: `query TicksByPool($pool: String!, $tick: BigInt!) {
+      below: ticks(
+        first: 500, orderBy: tickIdx, orderDirection: desc
+        where: { poolAddress: $pool, tickIdx_lte: $tick }
+      ) { tickIdx liquidityNet }
+      above: ticks(
+        first: 500, orderBy: tickIdx, orderDirection: asc
+        where: { poolAddress: $pool, tickIdx_gt: $tick }
+      ) { tickIdx liquidityNet }
       pools(first: 1, where: { id: $pool }) {
         tick
         liquidity

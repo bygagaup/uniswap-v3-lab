@@ -62,6 +62,15 @@ export function liquidityDensity(args: {
   currentTick: Tick;
   /** The live sqrt price, for an exact active-bar split. Defaults to the tick's. */
   currentSqrtPrice?: SqrtPriceX96;
+  /**
+   * The pool's reported active liquidity. When given, the interval containing
+   * the current tick is SEEDED with it and the rest is propagated outward — the
+   * correct way to draw a windowed view, since a subgraph's first-1000 ticks
+   * rarely include the whole distribution and accumulating from a truncated
+   * bottom would go negative. Without it, the running sum is taken from the
+   * bottom (right for a complete set, e.g. a fixture) and a negative sum throws.
+   */
+  activeLiquidity?: Liquidity;
 }): readonly DensityBar[] {
   const { scale, ticks, currentTick } = args;
   if (ticks.length < 2) return [];
@@ -74,26 +83,17 @@ export function liquidityDensity(args: {
     }
   }
 
+  const liq = liquidityByInterval(ticks, currentTick, args.activeLiquidity);
   const currentSqrt = args.currentSqrtPrice ?? getSqrtRatioAtTick(currentTick);
   const decimals0 = scale.pool.token0.decimals;
   const decimals1 = scale.pool.token1.decimals;
 
   const bars: DensityBar[] = [];
-  let cumulative = 0n;
-
   for (let i = 0; i < ticks.length - 1; i++) {
     const here = ticks[i] as TickDatum;
     const next = ticks[i + 1] as TickDatum;
-    cumulative += BigInt(here.liquidityNet);
-
-    // A negative running sum means the tick set is inconsistent (missing ticks
-    // below the window, or misordered) — better to say so than to draw nonsense.
-    if (cumulative < 0n) {
-      throw new CoreError('NEGATIVE_AMOUNT', 'cumulative liquidity went negative', {
-        at: here.tickIdx,
-      });
-    }
-    if (cumulative === 0n) continue;
+    const cumulative = liq[i] as bigint;
+    if (cumulative <= 0n) continue;
 
     const lower = TickCtor.of(here.tickIdx);
     const upper = TickCtor.of(next.tickIdx);
@@ -119,6 +119,84 @@ export function liquidityDensity(args: {
   }
 
   return bars;
+}
+
+/**
+ * The active liquidity in each interval [ticks[i], ticks[i+1]).
+ *
+ * Seeded mode (activeLiquidity given): set the interval containing the current
+ * tick to that value and propagate — up by adding the next tick's net, down by
+ * subtracting the current tick's net. Robust to a windowed/truncated tick set;
+ * negatives at the far edges (where openings sit outside the window) are clamped
+ * to zero rather than throwing.
+ *
+ * Accumulate mode (no seed): running sum from the bottom, which is exact for a
+ * complete set and throws if it ever goes negative — a real inconsistency.
+ */
+function liquidityByInterval(
+  ticks: readonly TickDatum[],
+  currentTick: Tick,
+  seed: Liquidity | undefined,
+): bigint[] {
+  if (seed === undefined) return accumulateFromBottom(ticks);
+
+  const active = activeIntervalIndex(ticks, currentTick);
+  // Current tick outside the windowed set: fall back to a clamped accumulation.
+  return active === -1 ? accumulateClamped(ticks, seed) : propagateFromSeed(ticks, active, seed);
+}
+
+/** Interval index containing the current tick, or -1 if it lies outside. */
+function activeIntervalIndex(ticks: readonly TickDatum[], currentTick: Tick): number {
+  for (let i = 0; i < ticks.length - 1; i++) {
+    if (
+      (ticks[i] as TickDatum).tickIdx <= currentTick &&
+      currentTick < (ticks[i + 1] as TickDatum).tickIdx
+    ) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+function accumulateFromBottom(ticks: readonly TickDatum[]): bigint[] {
+  const liq: bigint[] = [];
+  let cumulative = 0n;
+  for (let i = 0; i < ticks.length - 1; i++) {
+    cumulative += BigInt((ticks[i] as TickDatum).liquidityNet);
+    if (cumulative < 0n) {
+      throw new CoreError('NEGATIVE_AMOUNT', 'cumulative liquidity went negative', {
+        at: (ticks[i] as TickDatum).tickIdx,
+      });
+    }
+    liq.push(cumulative);
+  }
+  return liq;
+}
+
+function accumulateClamped(ticks: readonly TickDatum[], seed: Liquidity): bigint[] {
+  const liq: bigint[] = [];
+  let cumulative: bigint = seed;
+  for (let i = 0; i < ticks.length - 1; i++) {
+    cumulative += BigInt((ticks[i] as TickDatum).liquidityNet);
+    liq.push(cumulative > 0n ? cumulative : 0n);
+  }
+  return liq;
+}
+
+function propagateFromSeed(ticks: readonly TickDatum[], active: number, seed: Liquidity): bigint[] {
+  const n = ticks.length - 1;
+  const liq = new Array<bigint>(n).fill(0n);
+  liq[active] = seed;
+  // Up: crossing a tick upward adds its net. Down: reverse it.
+  for (let i = active + 1; i < n; i++) {
+    const next = (liq[i - 1] as bigint) + BigInt((ticks[i] as TickDatum).liquidityNet);
+    liq[i] = next > 0n ? next : 0n;
+  }
+  for (let i = active - 1; i >= 0; i--) {
+    const prev = (liq[i + 1] as bigint) - BigInt((ticks[i + 1] as TickDatum).liquidityNet);
+    liq[i] = prev > 0n ? prev : 0n;
+  }
+  return liq;
 }
 
 /**
