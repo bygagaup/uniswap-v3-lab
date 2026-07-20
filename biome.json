@@ -31,6 +31,15 @@
   },
   "overrides": [
     {
+      "includes": ["**/scripts/**"],
+      "linter": {
+        "rules": {
+          "complexity": { "noExcessiveCognitiveComplexity": "off" },
+          "suspicious": { "noConsole": "off" }
+        }
+      }
+    },
+    {
       "includes": ["packages/core/src/**"],
       "linter": {
         "rules": {

@@ -3,6 +3,8 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     projects: [
+      // Real workerd, its own pool — defined in the app so `--filter` works too.
+      './apps/api/vitest.config.ts',
       {
         // The v3-sdk oracle ships sourcemaps pointing at sources it does not
         // publish, and Vite warns once per file. Nothing actionable, ~40 lines

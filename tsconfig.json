@@ -4,6 +4,7 @@
     { "path": "./packages/core" },
     { "path": "./packages/core/tsconfig.tools.json" },
     { "path": "./apps/api" },
+    { "path": "./apps/api/tsconfig.tools.json" },
     { "path": "./apps/web" }
   ]
 }

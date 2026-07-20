@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "dist-tools",
+    "noEmit": false,
+    "emitDeclarationOnly": true,
+    "types": ["node", "@cloudflare/workers-types"]
+  },
+  "include": ["scripts/**/*.ts", "test/**/*.ts", "test/**/*.d.ts"],
+  "references": [{ "path": "./tsconfig.json" }]
+}

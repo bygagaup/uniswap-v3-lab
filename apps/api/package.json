@@ -9,14 +9,17 @@
     "build": "tsc --build",
     "deploy": "wrangler deploy",
     "test": "vitest run",
-    "cf-typegen": "wrangler types"
+    "cf-typegen": "wrangler types",
+    "probe": "tsx scripts/probe.ts"
   },
   "dependencies": {
-    "hono": "^4.10.4"
+    "hono": "^4.10.4",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.18.6",
     "@cloudflare/workers-types": "^5.20260719.1",
+    "graphql": "^17.0.2",
     "wrangler": "^4.112.0"
   }
 }
