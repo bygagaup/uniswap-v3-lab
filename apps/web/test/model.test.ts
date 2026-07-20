@@ -88,3 +88,33 @@ describe('buildModel', () => {
     expect(result.ok).toBe(false);
   });
 });
+
+describe('leverage & hedge', () => {
+  it('has no levered overlay unlevered and unhedged', () => {
+    const r = buildModel(USDC_WETH, { notional: 10_000, inverted: false });
+    if (!r.ok) throw new Error(r.error);
+    expect(r.model.levered).toBeNull();
+    expect(r.model.leverage).toBe(1);
+  });
+
+  it('produces a levered equity overlay with margins when leveraged', () => {
+    const r = buildModel(USDC_WETH, { notional: 10_000, inverted: false, leverage: 3 });
+    if (!r.ok) throw new Error(r.error);
+    expect(r.model.levered).not.toBeNull();
+    // Every point carries a numeric margin once there is debt.
+    for (const p of r.model.levered?.curve ?? []) expect(typeof p.margin).toBe('number');
+    // Equity at entry is notional / leverage.
+    const near = (r.model.levered?.curve ?? []).reduce((a, b) =>
+      Math.abs(b.price - r.model.entryPrice) < Math.abs(a.price - r.model.entryPrice) ? b : a,
+    );
+    expect(near.value).toBeGreaterThan(2000);
+    expect(near.value).toBeLessThan(4500);
+  });
+
+  it('a hedge alone (no leverage) still produces an overlay', () => {
+    const r = buildModel(USDC_WETH, { notional: 10_000, inverted: false, hedgeSide: 'short' });
+    if (!r.ok) throw new Error(r.error);
+    expect(r.model.levered).not.toBeNull();
+    expect(r.model.hedge.side).toBe('short');
+  });
+});

@@ -278,6 +278,44 @@ export function impermanentLoss(args: {
   return (lp - hodl) / hodl;
 }
 
+/**
+ * A directional perp overlay, in the scale's quote token.
+ *
+ * A short flattens an LP's upside and offsets its downside IL; a long amplifies.
+ * `notional` is the equity committed to the hedge and `leverage` its multiplier,
+ * so the exposure is `notional · leverage`.
+ */
+export interface Hedge {
+  readonly side: 'long' | 'short' | 'none';
+  readonly notional: number;
+  readonly leverage: number;
+}
+
+export const NO_HEDGE: Hedge = { side: 'none', notional: 0, leverage: 1 };
+
+/** Hedge PnL in quote terms at `price`, relative to `entryPrice`. */
+export function hedgePnl(hedge: Hedge, entryPrice: HumanPrice, price: HumanPrice): number {
+  if (hedge.side === 'none' || hedge.notional <= 0) return 0;
+  const move = (price - entryPrice) / entryPrice;
+  const exposure = hedge.notional * hedge.leverage;
+  return hedge.side === 'long' ? exposure * move : -exposure * move;
+}
+
+/**
+ * Health of a leveraged position: equity as a fraction of the position value,
+ * where equity is the position value net of the fixed debt taken on to lever it.
+ *
+ * Returns `null` when there is no debt (leverage 1) — the position cannot be
+ * liquidated, so its margin is unbounded rather than a made-up number. The
+ * predecessor stuffed the string "∞" into a numeric field and then compared it
+ * with `>=`; this keeps the type honest.
+ */
+export function marginRatio(args: { positionValue: number; debt: number }): number | null {
+  if (args.debt <= 0) return null;
+  if (args.positionValue <= 0) return 0;
+  return (args.positionValue - args.debt) / args.positionValue;
+}
+
 /** The deposit a position implies at a given price — what a mint would cost. */
 export function depositFor(args: {
   scale: PriceScale;

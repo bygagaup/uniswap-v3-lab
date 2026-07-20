@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { parseSearch, searchSchema } from '../src/state/search.js';
 
-const DEFAULTS = { chain: 'ethereum', notional: 10_000, inv: false };
+const DEFAULTS = {
+  chain: 'ethereum',
+  notional: 10_000,
+  inv: false,
+  lev: 1,
+  hedge: 'none',
+  hedgePct: 0.5,
+};
 
 describe('search params', () => {
   it('defaults to ethereum with the schema defaults filled in', () => {
@@ -29,6 +36,13 @@ describe('search params', () => {
 
   it('round-trips a fully specified search, filling defaults', () => {
     const input = { chain: 'arbitrum', pool: `0x${'a'.repeat(40)}`, q: 'weth' };
-    expect(parseSearch(input)).toEqual({ ...input, notional: 10_000, inv: false });
+    expect(parseSearch(input)).toEqual({
+      ...input,
+      notional: 10_000,
+      inv: false,
+      lev: 1,
+      hedge: 'none',
+      hedgePct: 0.5,
+    });
   });
 });

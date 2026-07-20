@@ -38,16 +38,21 @@ export function PayoffChart({
   const prices = model.grid.prices;
   const xDomain: [number, number] = [prices[0] as number, prices[prices.length - 1] as number];
 
+  const leveredValues = model.levered ? model.levered.curve.map((p) => p.value) : [];
   const allValues = [
     ...model.curves.v3,
     ...model.curves.v2,
     ...model.curves.hodl5050,
     ...model.curves.hodlBase,
-  ].map((p) => p.value);
+  ]
+    .map((p) => p.value)
+    .concat(leveredValues);
   const yMax = Math.max(...allValues) * 1.05;
+  // The levered equity curve can go negative (toward liquidation); give it room.
+  const yMin = Math.min(0, ...leveredValues);
 
   const x = scaleLinear({ domain: xDomain, range: [0, innerW] });
-  const y = scaleLinear({ domain: [0, yMax], range: [innerH, 0] });
+  const y = scaleLinear({ domain: [yMin, yMax], range: [innerH, 0] });
 
   const priceAtX = (clientX: number): number => {
     const rect = svgRef.current?.getBoundingClientRect();
@@ -100,6 +105,27 @@ export function PayoffChart({
         style={{ touchAction: 'none' }}
       >
         <g transform={`translate(${MARGIN.left},${MARGIN.top})`}>
+          {/* liquidation bands: price spans where the levered equity is wiped out */}
+          {model.levered?.segments
+            .filter((seg) => seg.liquidated && seg.points.length > 0)
+            .map((seg) => {
+              const first = seg.points[0] as { price: number };
+              const last = seg.points[seg.points.length - 1] as { price: number };
+              const bx = finite(x(first.price));
+              const bw = Math.max(finite(x(last.price)) - bx, 1);
+              return (
+                <rect
+                  key={first.price}
+                  x={bx}
+                  y={0}
+                  width={bw}
+                  height={innerH}
+                  fill="var(--danger)"
+                  opacity={0.1}
+                />
+              );
+            })}
+
           {/* range band */}
           <rect
             x={Math.min(lowerX, upperX)}
@@ -134,6 +160,18 @@ export function PayoffChart({
             </text>
           ))}
 
+          {/* zero line, only drawn when the levered curve dips below it */}
+          {yMin < 0 && (
+            <line
+              x1={0}
+              x2={innerW}
+              y1={finite(y(0))}
+              y2={finite(y(0))}
+              stroke="var(--border)"
+              strokeWidth={1}
+            />
+          )}
+
           {/* curves */}
           {curves.map((c) => (
             <path
@@ -149,6 +187,20 @@ export function PayoffChart({
               strokeDasharray={c.dash}
             />
           ))}
+
+          {/* leveraged equity overlay */}
+          {model.levered && (
+            <path
+              d={linePath(
+                model.levered.curve,
+                (p) => x(p),
+                (v) => y(v),
+              )}
+              fill="none"
+              stroke="var(--danger)"
+              strokeWidth={2}
+            />
+          )}
 
           {/* current price marker */}
           <line
@@ -205,6 +257,21 @@ export function PayoffChart({
             <span className="muted">{c.label}</span>
           </span>
         ))}
+        {model.levered && (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <span
+              style={{
+                width: 14,
+                height: 0,
+                borderTop: '2px solid var(--danger)',
+                display: 'inline-block',
+              }}
+            />
+            <span className="muted">
+              Levered equity{model.leverage > 1 ? ` ${model.leverage}×` : ''}
+            </span>
+          </span>
+        )}
       </div>
     </div>
   );

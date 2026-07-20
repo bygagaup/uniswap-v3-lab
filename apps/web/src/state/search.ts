@@ -34,6 +34,12 @@ export const searchSchema = z.object({
   upper: z.coerce.number().int().optional(),
   /** Invert the price orientation (flip which token the axis is priced in). */
   inv: z.coerce.boolean().default(false),
+  /** Leverage multiplier on the position (1 = unlevered). */
+  lev: z.coerce.number().min(1).max(20).default(1),
+  /** Perp hedge side. */
+  hedge: z.enum(['none', 'long', 'short']).default('none'),
+  /** Hedge notional as a fraction of position size (0..2). */
+  hedgePct: z.coerce.number().min(0).max(2).default(0.5),
 });
 
 export type Search = z.infer<typeof searchSchema>;

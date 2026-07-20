@@ -72,6 +72,9 @@ function HomePage() {
     onRange: (lower: number, upper: number) =>
       navigate({ search: (prev: Search) => ({ ...prev, lower, upper }) }),
     onToggleInvert: () => navigate({ search: (prev: Search) => ({ ...prev, inv: !prev.inv }) }),
+    onLeverage: (lev: number) => navigate({ search: (prev: Search) => ({ ...prev, lev }) }),
+    onHedge: (hedge: 'none' | 'long' | 'short') =>
+      navigate({ search: (prev: Search) => ({ ...prev, hedge }) }),
   };
 
   return (
@@ -108,6 +111,9 @@ function HomePage() {
                 lower: search.lower,
                 upper: search.upper,
                 inverted: search.inv,
+                leverage: search.lev,
+                hedgeSide: search.hedge,
+                hedgePct: search.hedgePct,
               }}
               handlers={strategyHandlers}
               canBacktest={canBacktest}

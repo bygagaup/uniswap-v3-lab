@@ -11,10 +11,28 @@ import { ILChart } from './ILChart.js';
 import { PayoffChart } from './PayoffChart.js';
 import { PoolOverview } from './PoolOverview.js';
 
+/** The safe price band of a levered position, or null if it never liquidates. */
+function liquidationRange(model: {
+  levered: {
+    segments: readonly { liquidated: boolean; points: readonly { price: number }[] }[];
+  } | null;
+}): string | null {
+  if (!model.levered) return null;
+  const anyLiquidated = model.levered.segments.some((s) => s.liquidated);
+  if (!anyLiquidated) return null;
+  const safe = model.levered.segments.filter((s) => !s.liquidated).flatMap((s) => s.points);
+  if (safe.length === 0) return 'liquidated across the whole range';
+  const lo = Math.min(...safe.map((p) => p.price));
+  const hi = Math.max(...safe.map((p) => p.price));
+  return `${formatPrice(lo)} – ${formatPrice(hi)}`;
+}
+
 export interface StrategyHandlers {
   onNotional: (n: number) => void;
   onRange: (lower: number, upper: number) => void;
   onToggleInvert: () => void;
+  onLeverage: (lev: number) => void;
+  onHedge: (side: 'none' | 'long' | 'short') => void;
 }
 
 export function StrategyView({
@@ -32,10 +50,18 @@ export function StrategyView({
 }) {
   // Destructure so the memo depends on primitives, not the input object identity
   // (which changes every render). Hooks all run before any early return.
-  const { notional, lower, upper, inverted } = input;
+  const {
+    notional,
+    lower,
+    upper,
+    inverted,
+    leverage = 1,
+    hedgeSide = 'none',
+    hedgePct = 0.5,
+  } = input;
   const result = useMemo(
-    () => buildModel(pool, { notional, lower, upper, inverted }),
-    [pool, notional, lower, upper, inverted],
+    () => buildModel(pool, { notional, lower, upper, inverted, leverage, hedgeSide, hedgePct }),
+    [pool, notional, lower, upper, inverted, leverage, hedgeSide, hedgePct],
   );
   const [payoffRef, payoffWidth] = useWidth<HTMLDivElement>();
   const [ilRef, ilWidth] = useWidth<HTMLDivElement>();
@@ -144,6 +170,42 @@ export function StrategyView({
           <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
             {ratio0Pct}% {pool.token0.symbol} · {100 - ratio0Pct}% {pool.token1.symbol}
           </div>
+        </div>
+
+        {/* leverage + hedge */}
+        <div className="strategy-controls" style={{ marginTop: 14 }}>
+          <label>
+            <span className="label">Leverage · {model.leverage.toFixed(1)}×</span>
+            <input
+              type="range"
+              min={1}
+              max={10}
+              step={0.5}
+              value={model.leverage}
+              onChange={(e) => handlers.onLeverage(Number(e.target.value))}
+              aria-label="Leverage"
+            />
+          </label>
+          <label>
+            <span className="label">Hedge</span>
+            <select
+              className="search-input"
+              value={model.hedge.side}
+              onChange={(e) => handlers.onHedge(e.target.value as 'none' | 'long' | 'short')}
+            >
+              <option value="none">None</option>
+              <option value="short">Short {model.baseSymbol}</option>
+              <option value="long">Long {model.baseSymbol}</option>
+            </select>
+          </label>
+          {model.levered && (
+            <div>
+              <span className="label">Liquidates outside</span>
+              <div style={{ marginTop: 6, fontVariantNumeric: 'tabular-nums' }}>
+                {liquidationRange(model) ?? <span className="muted">— safe across range</span>}
+              </div>
+            </div>
+          )}
         </div>
       </section>
 

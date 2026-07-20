@@ -12,7 +12,11 @@
  */
 import { CoreError } from './errors.js';
 import {
+  type Hedge,
+  hedgePnl,
   impermanentLoss,
+  marginRatio,
+  NO_HEDGE,
   type Position,
   positionFromNotional,
   positionValue,
@@ -187,6 +191,83 @@ export function impermanentLossCurve(args: {
     price,
     value: impermanentLoss({ scale, position, entryPrice, price: HumanPriceCtor.of(price) }),
   }));
+}
+
+export interface LeveredPoint {
+  readonly price: number;
+  /** Equity value: the LP position net of debt, plus any hedge PnL. */
+  readonly value: number;
+  /** Health in [0, 1], or null when unlevered (no debt, cannot be liquidated). */
+  readonly margin: number | null;
+}
+
+/**
+ * The equity curve of a leveraged, optionally hedged position.
+ *
+ * `equity` is the capital committed; `leverage` sizes the LP position to
+ * `equity · leverage`, borrowing `equity · (leverage − 1)` in the quote token as
+ * a fixed debt. Equity at each price is the LP value minus that debt plus the
+ * hedge PnL — so at entry it is exactly `equity`, and it can go to zero
+ * (liquidation) as the LP value falls toward the debt.
+ */
+export function leveragedCurve(args: {
+  scale: PriceScale;
+  range: TickRange;
+  equity: number;
+  leverage: number;
+  entryPrice: HumanPrice;
+  grid: PriceGrid;
+  hedge?: Hedge;
+}): readonly LeveredPoint[] {
+  const { scale, range, equity, leverage, entryPrice, grid } = args;
+  const hedge = args.hedge ?? NO_HEDGE;
+  if (!(leverage >= 1)) {
+    throw new CoreError('NOT_FINITE', 'leverage must be >= 1', leverage);
+  }
+
+  const notional = equity * leverage;
+  const debt = equity * (leverage - 1);
+  const position = positionFromNotional({ scale, price: entryPrice, range, notional });
+
+  return grid.prices.map((price) => {
+    const p = HumanPriceCtor.of(price);
+    const lpValue = positionValue({ scale, position, price: p }).value;
+    const pnl = hedgePnl(hedge, entryPrice, p);
+    return {
+      price,
+      value: lpValue - debt + pnl,
+      margin: marginRatio({ positionValue: lpValue, debt }),
+    };
+  });
+}
+
+export interface LiquidationSegment {
+  readonly liquidated: boolean;
+  readonly points: readonly LeveredPoint[];
+}
+
+/**
+ * Splits a levered curve into contiguous runs above and below the maintenance
+ * margin, so the chart can shade the liquidated price bands. Replaces the
+ * three-way slice() the predecessor did inline in the chart component.
+ */
+export function liquidationSegments(
+  points: readonly LeveredPoint[],
+  maintenanceMargin: number,
+): readonly LiquidationSegment[] {
+  const segments: LiquidationSegment[] = [];
+  const isLiquidated = (p: LeveredPoint) => p.margin !== null && p.margin <= maintenanceMargin;
+
+  for (const point of points) {
+    const liquidated = isLiquidated(point);
+    const last = segments[segments.length - 1];
+    if (last && last.liquidated === liquidated) {
+      (last.points as LeveredPoint[]).push(point);
+    } else {
+      segments.push({ liquidated, points: [point] });
+    }
+  }
+  return segments;
 }
 
 /** The token split of a range position at entry, for the ratio indicator. */

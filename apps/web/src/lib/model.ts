@@ -11,8 +11,13 @@ import {
   type DiffPoint,
   entrySplit,
   getTickAtSqrtRatio,
+  type Hedge,
   HumanPrice as HumanPriceCtor,
   impermanentLossCurve,
+  type LeveredPoint,
+  type LiquidationSegment,
+  leveragedCurve,
+  liquidationSegments,
   type Orientation,
   type Position,
   type PriceGrid,
@@ -53,6 +58,13 @@ export interface StrategyModel {
   readonly il: readonly DiffPoint[];
   readonly split: { readonly amount0: number; readonly amount1: number; readonly ratio0: number };
   readonly notional: number;
+  readonly leverage: number;
+  readonly hedge: Hedge;
+  /** The equity payoff overlay + liquidation bands, present only when levered or hedged. */
+  readonly levered: {
+    readonly curve: readonly LeveredPoint[];
+    readonly segments: readonly LiquidationSegment[];
+  } | null;
 }
 
 export interface ModelInput {
@@ -60,10 +72,16 @@ export interface ModelInput {
   readonly lower?: number | undefined;
   readonly upper?: number | undefined;
   readonly inverted: boolean;
+  readonly leverage?: number;
+  readonly hedgeSide?: 'none' | 'long' | 'short';
+  readonly hedgePct?: number;
 }
 
 /** ~±15% expressed in ticks, the default half-width when a range isn't set. */
 const DEFAULT_HALF_WIDTH = 1400;
+
+/** Maintenance margin below which a levered position is flagged liquidated. */
+const MAINTENANCE_MARGIN = 0.0625;
 
 function chooseOrientation(pool: Pool, inverted: boolean): Orientation {
   // Default to the orientation whose price reads ≥ 1 (the volatile token priced
@@ -83,7 +101,13 @@ function chooseOrientation(pool: Pool, inverted: boolean): Orientation {
 
 export type ModelResult = { ok: true; model: StrategyModel } | { ok: false; error: string };
 
-export function buildModel(pool: Pool, input: ModelInput): ModelResult {
+export function buildModel(pool: Pool, rawInput: ModelInput): ModelResult {
+  const input = {
+    ...rawInput,
+    leverage: rawInput.leverage ?? 1,
+    hedgeSide: rawInput.hedgeSide ?? ('none' as const),
+    hedgePct: rawInput.hedgePct ?? 0.5,
+  };
   try {
     const key = poolKeyFromApi(pool);
     const orientation = chooseOrientation(pool, input.inverted);
@@ -127,6 +151,30 @@ export function buildModel(pool: Pool, input: ModelInput): ModelResult {
       notional: input.notional,
     });
 
+    // Leverage treats `notional` as the LP position size and the equity as
+    // notional/leverage — you hold the same position but put down 1/L of it.
+    // The hedge is a perp of `hedgePct` of the position.
+    const hedge: Hedge = {
+      side: input.hedgeSide,
+      notional: input.notional * input.hedgePct,
+      leverage: 1,
+    };
+    const levered =
+      input.leverage > 1 || hedge.side !== 'none'
+        ? (() => {
+            const curve = leveragedCurve({
+              scale,
+              range,
+              equity: input.notional / input.leverage,
+              leverage: input.leverage,
+              entryPrice: HumanPriceCtor.of(entryPrice),
+              grid,
+              hedge,
+            });
+            return { curve, segments: liquidationSegments(curve, MAINTENANCE_MARGIN) };
+          })()
+        : null;
+
     return {
       ok: true,
       model: {
@@ -146,6 +194,9 @@ export function buildModel(pool: Pool, input: ModelInput): ModelResult {
         il,
         split: built,
         notional: input.notional,
+        leverage: input.leverage,
+        hedge,
+        levered,
       },
     };
   } catch (error) {
