@@ -1,9 +1,11 @@
 import { HumanPrice, roundTick, type Tick, tickAtPrice } from '@poollab/core';
 import { useMemo } from 'react';
-import type { Pool } from '../api/types.js';
+import { useTicks } from '../api/ticks.js';
+import type { ChainSlug, Pool } from '../api/types.js';
 import { formatPrice, formatUsd } from '../lib/format.js';
 import { buildModel, type ModelInput } from '../lib/model.js';
 import { useWidth } from '../lib/useWidth.js';
+import { DensityChart } from './DensityChart.js';
 import { ILChart } from './ILChart.js';
 import { PayoffChart } from './PayoffChart.js';
 import { PoolOverview } from './PoolOverview.js';
@@ -15,10 +17,12 @@ export interface StrategyHandlers {
 }
 
 export function StrategyView({
+  chain,
   pool,
   input,
   handlers,
 }: {
+  chain: ChainSlug;
   pool: Pool;
   input: ModelInput;
   handlers: StrategyHandlers;
@@ -32,6 +36,8 @@ export function StrategyView({
   );
   const [payoffRef, payoffWidth] = useWidth<HTMLDivElement>();
   const [ilRef, ilWidth] = useWidth<HTMLDivElement>();
+  const [densityRef, densityWidth] = useWidth<HTMLDivElement>();
+  const ticksQuery = useTicks(chain, pool.id, true);
 
   if (!result.ok) {
     return (
@@ -145,6 +151,19 @@ export function StrategyView({
         </h2>
         <div ref={payoffRef}>
           <PayoffChart model={model} width={payoffWidth} onRangeCommit={onDragCommit} />
+        </div>
+      </section>
+
+      <section className="card">
+        <h2>Liquidity density</h2>
+        <div ref={densityRef}>
+          {ticksQuery.isPending && <p className="placeholder">Loading tick liquidity…</p>}
+          {ticksQuery.isError && (
+            <p className="placeholder muted">Tick liquidity is unavailable for this pool.</p>
+          )}
+          {ticksQuery.isSuccess && (
+            <DensityChart model={model} ticks={ticksQuery.data.ticks} width={densityWidth} />
+          )}
         </div>
       </section>
 

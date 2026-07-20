@@ -98,6 +98,7 @@ function HomePage() {
           )}
           {poolQuery.isSuccess && poolQuery.data && (
             <StrategyView
+              chain={search.chain}
               pool={poolQuery.data}
               input={{
                 notional: search.notional,

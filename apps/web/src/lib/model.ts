@@ -35,6 +35,8 @@ export interface StrategyModel {
   readonly baseSymbol: string;
   readonly quoteSymbol: string;
   readonly entryPrice: number;
+  readonly currentTick: Tick;
+  readonly currentSqrtPrice: SqrtPriceX96;
   readonly range: TickRange;
   readonly lowerPrice: number;
   readonly upperPrice: number;
@@ -85,7 +87,8 @@ export function buildModel(pool: Pool, input: ModelInput): ModelResult {
     const scale = priceScale(key, orientation);
     const spacing = key.tickSpacing;
 
-    const currentTick = getTickAtSqrtRatio(SqrtPriceX96.of(pool.sqrtPrice));
+    const currentSqrtPrice = SqrtPriceX96.of(pool.sqrtPrice);
+    const currentTick = getTickAtSqrtRatio(currentSqrtPrice);
     const entryPrice = priceAtTick(scale, currentTick);
 
     // Ticks map to price monotonically in one orientation and inversely in the
@@ -122,6 +125,8 @@ export function buildModel(pool: Pool, input: ModelInput): ModelResult {
         baseSymbol: scale.baseToken.symbol,
         quoteSymbol: scale.quoteToken.symbol,
         entryPrice,
+        currentTick,
+        currentSqrtPrice,
         range,
         lowerPrice: priceAtTick(scale, range.lower),
         upperPrice: priceAtTick(scale, range.upper),

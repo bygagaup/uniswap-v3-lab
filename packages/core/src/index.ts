@@ -1,4 +1,5 @@
 export * from './convert.js';
+export * from './density.js';
 export * from './errors.js';
 export * from './feeTiers.js';
 export * from './liquidityMath.js';
