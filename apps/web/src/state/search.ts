@@ -27,6 +27,13 @@ export const searchSchema = z.object({
     .optional(),
   /** Free-text search in the pool picker. */
   q: z.string().max(64).optional(),
+  /** Position size in quote-token units. */
+  notional: z.coerce.number().positive().max(1e12).default(10_000),
+  /** Range boundaries as ticks. Absent until a pool defaults them. */
+  lower: z.coerce.number().int().optional(),
+  upper: z.coerce.number().int().optional(),
+  /** Invert the price orientation (flip which token the axis is priced in). */
+  inv: z.coerce.boolean().default(false),
 });
 
 export type Search = z.infer<typeof searchSchema>;
@@ -34,5 +41,7 @@ export type Search = z.infer<typeof searchSchema>;
 /** For TanStack Router's `validateSearch`: never throws, always yields a valid shape. */
 export function parseSearch(input: Record<string, unknown>): Search {
   const result = searchSchema.safeParse(input);
-  return result.success ? result.data : { chain: 'ethereum' };
+  // Garbage falls back to the schema's own defaults, so the returned shape is
+  // always complete (notional, inv, …) — never a partial object.
+  return result.success ? result.data : searchSchema.parse({});
 }

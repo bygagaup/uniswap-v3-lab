@@ -206,6 +206,44 @@ button {
   color: var(--text-muted);
 }
 
+.strategy-controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.strategy-controls label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.strategy-controls .label {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.split-bar {
+  display: flex;
+  height: 12px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--surface-2);
+}
+
+.split-bar .split-0 {
+  background: var(--accent);
+}
+
+.split-bar .split-1 {
+  background: var(--positive);
+}
+
+main > .card + .card {
+  margin-top: var(--gap);
+}
+
 .error {
   color: var(--danger);
 }

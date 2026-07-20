@@ -103,7 +103,9 @@ export function priceAtSqrtRatio(scale: PriceScale, sqrtP: SqrtPriceX96): HumanP
  */
 export function tickAtPrice(scale: PriceScale, price: HumanPrice): Tick {
   const raw = rawFromHuman(scale, price);
-  const tick = Math.round(Math.log(raw) / LN_10001);
+  // `Math.round` of a tiny negative (price ≈ 1) yields -0, which stringifies as
+  // "-0" and fails an Object.is round-trip against +0. Normalise it away.
+  const tick = Math.round(Math.log(raw) / LN_10001) || 0;
   if (tick < MIN_TICK || tick > MAX_TICK) {
     throw new CoreError('TICK_OUT_OF_RANGE', 'price lies outside the representable tick range', {
       price,

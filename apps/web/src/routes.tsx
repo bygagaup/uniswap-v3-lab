@@ -8,8 +8,8 @@ import {
 import { useChains, usePool } from './api/queries.js';
 import type { ChainSlug, Pool } from './api/types.js';
 import { ChainSwitcher } from './components/ChainSwitcher.js';
-import { PoolOverview } from './components/PoolOverview.js';
 import { PoolPicker } from './components/PoolPicker.js';
+import { StrategyView } from './components/StrategyView.js';
 import { ThemeToggle } from './components/ThemeToggle.js';
 import { parseSearch, type Search } from './state/search.js';
 
@@ -40,11 +40,36 @@ function HomePage() {
   const poolQuery = usePool(search.chain, search.pool);
 
   // Every state change is a URL change — the address bar is the store.
-  const setChain = (chain: ChainSlug) => navigate({ search: { chain }, replace: false });
+  const setChain = (chain: ChainSlug) =>
+    navigate({
+      search: (prev: Search) => ({
+        ...prev,
+        chain,
+        pool: undefined,
+        lower: undefined,
+        upper: undefined,
+      }),
+    });
   const setQuery = (q: string) =>
-    navigate({ search: (prev) => ({ ...prev, q: q || undefined }), replace: true });
+    navigate({ search: (prev: Search) => ({ ...prev, q: q || undefined }), replace: true });
+  // A new pool clears the range/orientation so they default to the new pool.
   const selectPool = (pool: Pool) =>
-    navigate({ search: (prev) => ({ ...prev, pool: pool.id.toLowerCase() }) });
+    navigate({
+      search: (prev: Search) => ({
+        chain: prev.chain,
+        notional: prev.notional,
+        inv: false,
+        pool: pool.id.toLowerCase(),
+      }),
+    });
+
+  const strategyHandlers = {
+    onNotional: (notional: number) =>
+      navigate({ search: (prev: Search) => ({ ...prev, notional }) }),
+    onRange: (lower: number, upper: number) =>
+      navigate({ search: (prev: Search) => ({ ...prev, lower, upper }) }),
+    onToggleInvert: () => navigate({ search: (prev: Search) => ({ ...prev, inv: !prev.inv }) }),
+  };
 
   return (
     <>
@@ -71,7 +96,18 @@ function HomePage() {
               {poolQuery.error instanceof Error ? poolQuery.error.message : 'Failed to load pool'}
             </p>
           )}
-          {poolQuery.isSuccess && poolQuery.data && <PoolOverview pool={poolQuery.data} />}
+          {poolQuery.isSuccess && poolQuery.data && (
+            <StrategyView
+              pool={poolQuery.data}
+              input={{
+                notional: search.notional,
+                lower: search.lower,
+                upper: search.upper,
+                inverted: search.inv,
+              }}
+              handlers={strategyHandlers}
+            />
+          )}
           {poolQuery.isSuccess && !poolQuery.data && (
             <p className="placeholder">That pool was not found on this chain.</p>
           )}
