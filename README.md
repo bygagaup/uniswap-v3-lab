@@ -48,13 +48,12 @@ pnpm --filter @poollab/api exec wrangler secret put GRAPH_API_KEY
 pnpm deploy
 ```
 
-## Relationship to prior work
+## Provenance
 
-PoolLab is an independent reimplementation. It was informed by the author's earlier fork of
-[DefiLab-xyz/uniswap-v3-simulator](https://github.com/DefiLab-xyz/uniswap-v3-simulator), but
-shares no code with it: that project ships no license, so its domain math is all-rights-reserved.
-Everything here derives from the [Uniswap V3 whitepaper](https://uniswap.org/whitepaper-v3.pdf)
-and the published behavior of the core contracts.
+The domain math is an independent implementation derived from the
+[Uniswap V3 whitepaper](https://uniswap.org/whitepaper-v3.pdf) and the published behavior of the
+core contracts — quantities that overflow a double (`sqrtPriceX96`, `feeGrowthGlobalX128`,
+liquidity) are computed in BigInt end to end.
 
 ## License
 

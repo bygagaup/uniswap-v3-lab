@@ -15,7 +15,9 @@
  *   bnb       F85MNzUG… has feeGrowthGlobal and ticks, but consistently refuses
  *             pools(orderBy: volumeUSD), which is what pool search runs on.
  *   unichain  BCfy6Vw9… has feeGrowthGlobal but no ticks entity at all.
- *   optimism, arbitrum  no deployment with feeGrowthGlobal exists.
+ *   optimism  ACse8kMD… (Messari fork) carries feeGrowthGlobal, so its fees come
+ *             from that deployment and pools/ticks from the default one.
+ *   arbitrum  no deployment with feeGrowthGlobal found, so backtesting is off.
  *
  * So fees come from one deployment and everything else from another. This is
  * also the real reason the predecessor's predecessor disabled backtesting on
@@ -97,6 +99,13 @@ export function chainConfigs(env: ChainEnv): readonly ChainConfig[] {
         'SUBGRAPH_ID_OPTIMISM',
         '49LkWjoVKd3bM9ZrMdFgYkjaCuVj4ExZttQi6XfbcPpG',
       ),
+      opOverrides: {
+        poolHourData: envOr(
+          env,
+          'SUBGRAPH_ID_OPTIMISM_FEES',
+          'ACse8kMDa7dNfsbhrXThzxnDiUA19WMKWVRdqJhNSpCG',
+        ),
+      },
     },
     {
       slug: 'arbitrum',
@@ -180,7 +189,7 @@ export interface ChainDescriptor {
 /**
  * What each chain can actually do, derived from which deployments are
  * configured — never from a hardcoded list. The UI greys out backtesting on
- * optimism and arbitrum because this says so, not because someone remembered to.
+ * arbitrum because this says so, not because someone remembered to.
  */
 export function describeChains(env: ChainEnv): readonly ChainDescriptor[] {
   return chainConfigs(env).map((config) => {

@@ -242,6 +242,53 @@ button {
   color: var(--text-muted);
 }
 
+.strategy-controls .field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.input-with-step {
+  display: flex;
+  gap: 2px;
+  align-items: center;
+}
+
+.input-with-step .search-input {
+  flex: 1;
+}
+
+.step-btn {
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.step-btn:hover {
+  background: var(--border);
+}
+
+.step-btn:active {
+  opacity: 0.7;
+}
+
+/* Hide browser native number stepper arrows */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
 .split-bar {
   display: flex;
   height: 12px;

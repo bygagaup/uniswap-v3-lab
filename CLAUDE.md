@@ -25,9 +25,9 @@ One Worker serves both the SPA and `/api` (`apps/api/wrangler.toml`, `run_worker
    in place of a number. `CoreError` with a code, or a value.
 5. **`GRAPH_API_KEY` never leaves `apps/api`.** CI greps the built bundle for it.
 
-## Why the math is being rewritten
+## Why the math is BigInt
 
-The predecessor (`~/projects/uniswap-v3-simulator`) computed everything in `Number`:
+Computing this in `Number` is the trap this core exists to avoid:
 
 - `parseInt()` on a uint256 `feeGrowthGlobalX128` discards ~205 bits, and `feeGrowthGlobal`
   wraps mod 2^256 by design — a float cannot represent either fact.
@@ -35,9 +35,8 @@ The predecessor (`~/projects/uniswap-v3-simulator`) computed everything in `Numb
 - `tickSpacing = feeTier / 50` is correct for the 0.05/0.3/1% tiers and **wrong for 0.01%**.
 - Real pools carry `L ≈ 1e21…1e25`; a double loses whole tokens at that magnitude.
 
-It is also legally unforkable: upstream (DefiLab-xyz) ships no license at all, so the domain
-math there is all-rights-reserved. Everything here is reimplemented from the Uniswap V3
-whitepaper and the core contracts' published behavior.
+Everything here is implemented from the Uniswap V3 whitepaper and the core contracts' published
+behavior. MIT-licensed — see `LICENSE`.
 
 ## Tick math
 

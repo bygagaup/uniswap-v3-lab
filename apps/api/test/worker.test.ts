@@ -178,7 +178,7 @@ describe('meta', () => {
     expect(res.status).toBe(200);
     const { chains } = await res.json<{ chains: { slug: string; capabilities: string[] }[] }>();
     expect(chains).toHaveLength(7);
-    expect(chains.find((c) => c.slug === 'optimism')?.capabilities).not.toContain('feeGrowth');
+    expect(chains.find((c) => c.slug === 'optimism')?.capabilities).toContain('feeGrowth');
     expect(chains.find((c) => c.slug === 'ethereum')?.capabilities).toContain('feeGrowth');
   });
 });

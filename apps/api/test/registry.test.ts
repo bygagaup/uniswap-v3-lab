@@ -105,10 +105,17 @@ describe('chain routing', () => {
 
   it('grants feeGrowth exactly to the chains with a backtest deployment', () => {
     const caps = new Map(describeChains(NO_ENV).map((d) => [d.slug, new Set(d.capabilities)]));
-    for (const chain of ['ethereum', 'polygon', 'base', 'bnb', 'unichain'] as ChainSlug[]) {
+    for (const chain of [
+      'ethereum',
+      'polygon',
+      'base',
+      'optimism',
+      'bnb',
+      'unichain',
+    ] as ChainSlug[]) {
       expect(caps.get(chain)?.has('feeGrowth'), `${chain} should support backtest`).toBe(true);
     }
-    for (const chain of ['optimism', 'arbitrum'] as ChainSlug[]) {
+    for (const chain of ['arbitrum'] as ChainSlug[]) {
       expect(caps.get(chain)?.has('feeGrowth'), `${chain} should NOT support backtest`).toBe(false);
     }
   });
