@@ -224,6 +224,34 @@ button {
   color: var(--text-muted);
 }
 
+.copy-address {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 6px;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.copy-address:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.copy-address svg {
+  opacity: 0.7;
+  flex-shrink: 0;
+}
+
+.copy-address:hover svg {
+  opacity: 1;
+}
+
 .strategy-controls {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));

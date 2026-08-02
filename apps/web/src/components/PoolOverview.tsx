@@ -2,6 +2,7 @@ import type { Pool } from '../api/types.js';
 import { formatFeeTier, formatPrice, formatUsd, pairLabel, shortAddress } from '../lib/format.js';
 import { currentPrice } from '../lib/pool.js';
 import { dailyFeesUsd, dailyVolumeUsd } from '../lib/usd.js';
+import { CopyAddress } from './CopyAddress.js';
 
 function Tile({ label, value }: { label: string; value: string }) {
   return (
@@ -31,9 +32,7 @@ export function PoolOverview({ pool }: { pool: Pool }) {
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 16 }}>
         <strong style={{ fontSize: 22 }}>{pairLabel(pool)}</strong>
         <span className="chip">{formatFeeTier(pool.feeTier)}</span>
-        <span className="muted" title={pool.id}>
-          {shortAddress(pool.id)}
-        </span>
+        <CopyAddress address={pool.id} display={shortAddress(pool.id)} />
       </div>
 
       <div className="stat-grid">
