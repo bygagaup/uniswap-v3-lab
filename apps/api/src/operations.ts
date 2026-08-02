@@ -26,24 +26,28 @@ const NINETY_DAYS = 90 * 24 * 60 * 60;
 /**
  * Pool selection thresholds and ordering.
  *
- * ORDER BY VOLUME, NOT TVL. The subgraph derives TVL through `derivedETH`, so a
- * token with a manipulated price reports an astronomical figure and floats to
- * the top of any TVL sort. On real data the entire Base top-8 was counterfeit
- * pools showing $1–3.5B TVL against $0–1700 of daily volume; Arbitrum had one
- * claiming 9.9e18.
+ * NEVER RANK BY TVL. The subgraph derives TVL through `derivedETH`, so a token
+ * with a manipulated price reports an astronomical figure and floats to the top
+ * of any TVL sort. On real data the entire Base top-8 was counterfeit pools
+ * showing $1–3.5B TVL against $0–1700 of daily volume; Arbitrum had one claiming
+ * 9.9e18. Inflating TVL is free; real activity is not.
  *
- * No TVL floor or ceiling fixes this — genuine Base pools are an order of
- * magnitude smaller than mainnet's, so any single threshold either lets fakes
- * through or cuts real pools out. Volume does fix it: inflating TVL is free,
- * while volume requires real trades and real gas.
+ * The predecessor ranked by `volumeUSD`, which is the right idea but broken on the
+ * fork subgraphs: they gate `volumeUSD`/`feesUSD` behind a token whitelist that is
+ * not configured for the chain, so genuine pools (USDC/USDT with $2B of real
+ * volume) report `volumeUSD = 0` and never surface. See packages/core/src/usd.ts.
  *
- * It is also the more meaningful sort for this application, which models fee
- * income. Fees are paid by volume. A pool with a billion in "liquidity" and no
- * trading earns nothing and has nothing to simulate.
+ * So the top list orders by `txCount` — real, un-gated on-chain activity that the
+ * counterfeit pools (2–13 txns) cannot fake as cheaply as TVL. That yields a
+ * candidate set; the client re-ranks it by USD volume reconstructed from
+ * `volumeToken*`/`derivedETH`/`ethPriceUSD` and keeps the top slice. `MIN_TXNS`
+ * screens out the fakes; `first` is wider than the display count to leave the
+ * client room to re-sort.
  */
 const MIN_TVL = 10_000;
-const MIN_VOLUME = 100_000;
+const MIN_TXNS = 1_000;
 const POOL_ORDER = 'orderBy: volumeUSD, orderDirection: desc';
+const TOP_ORDER = 'orderBy: txCount, orderDirection: desc';
 
 /**
  * `totalValueLockedToken0/1` feed the backtest's USD conversion factor. They
@@ -63,12 +67,21 @@ const POOL_FIELDS = `{
   totalValueLockedToken1
   token0Price
   token1Price
-  token0 { id symbol name decimals }
-  token1 { id symbol name decimals }
+  token0 { id symbol name decimals derivedETH }
+  token1 { id symbol name decimals derivedETH }
   poolDayData(orderBy: date, orderDirection: desc, first: 1) {
     date volumeUSD tvlUSD feesUSD liquidity high low volumeToken0 volumeToken1 close open
   }
 }`;
+
+/**
+ * The chain-wide ETH/USD rate. Paired with each token's `derivedETH` (fetched in
+ * POOL_FIELDS) it reconstructs USD figures the fork subgraphs leave at zero — see
+ * the whitelist note on `topPoolsByVolume` and `packages/core/src/usd.ts`. It is a
+ * single global row, so it sits beside `pools` in every document rather than nested
+ * per pool; the merge transforms surface it as `ethPriceUsd`.
+ */
+const BUNDLE_FIELD = `bundles(first: 1) { ethPriceUSD }`;
 
 export interface CachePolicy {
   /** Edge freshness, seconds. */
@@ -114,8 +127,9 @@ function mergePoolLists(data: unknown): unknown {
   if (typeof data !== 'object' || data === null) return data;
 
   const byId = new Map<string, Record<string, unknown>>();
-  for (const value of Object.values(data as Record<string, unknown>)) {
-    if (!Array.isArray(value)) continue;
+  for (const [key, value] of Object.entries(data as Record<string, unknown>)) {
+    // `bundles` is the ETH/USD carrier, not a pool list — skip it in the merge.
+    if (key === 'bundles' || !Array.isArray(value)) continue;
     for (const pool of value) {
       const id = (pool as { id?: unknown })?.id;
       if (typeof id === 'string' && !byId.has(id)) byId.set(id, pool as Record<string, unknown>);
@@ -125,7 +139,31 @@ function mergePoolLists(data: unknown): unknown {
   const pools = [...byId.values()].sort(
     (a, b) => Number(b.totalValueLockedUSD ?? 0) - Number(a.totalValueLockedUSD ?? 0),
   );
-  return { pools };
+  return { pools, ethPriceUsd: extractEthPriceUsd(data) };
+}
+
+/**
+ * Pulls `bundles[0].ethPriceUSD` out of a raw subgraph response, as a string, so
+ * the merged artifact carries it flat. Returns null when the deployment has no
+ * `Bundle` entity — callers fall back to the subgraph's own USD fields.
+ */
+function extractEthPriceUsd(data: unknown): string | null {
+  if (typeof data !== 'object' || data === null) return null;
+  const bundles = (data as { bundles?: unknown }).bundles;
+  if (!Array.isArray(bundles) || bundles.length === 0) return null;
+  const value = (bundles[0] as { ethPriceUSD?: unknown }).ethPriceUSD;
+  return typeof value === 'string' ? value : null;
+}
+
+/**
+ * Flattens a single-list pool response `{ pools, bundles }` into
+ * `{ pools, ethPriceUsd }`, so every pool operation hands the client the same
+ * shape whether or not it went through the aliased-list merge.
+ */
+function withEthPriceUsd(data: unknown): unknown {
+  if (typeof data !== 'object' || data === null) return data;
+  const d = data as Record<string, unknown>;
+  return { pools: d.pools ?? [], ethPriceUsd: extractEthPriceUsd(data) };
 }
 
 /**
@@ -151,7 +189,8 @@ export const OPERATIONS: Readonly<Record<OpName, Operation>> = {
     capability: 'pools',
     cache: { ttl: 60, swr: 300 },
     variables: z.object({ id: address }),
-    document: `query PoolById($id: ID!) { pools(where: { id: $id }) ${POOL_FIELDS} }`,
+    transform: withEthPriceUsd,
+    document: `query PoolById($id: ID!) { pools(where: { id: $id }) ${POOL_FIELDS} ${BUNDLE_FIELD} }`,
   },
 
   poolsByIds: {
@@ -159,7 +198,8 @@ export const OPERATIONS: Readonly<Record<OpName, Operation>> = {
     capability: 'pools',
     cache: { ttl: 60, swr: 300 },
     variables: z.object({ ids: z.array(address).min(1).max(50) }),
-    document: `query PoolsByIds($ids: [Bytes!]!) { pools(where: { id_in: $ids }, ${POOL_ORDER}) ${POOL_FIELDS} }`,
+    transform: withEthPriceUsd,
+    document: `query PoolsByIds($ids: [Bytes!]!) { pools(where: { id_in: $ids }, ${POOL_ORDER}) ${POOL_FIELDS} ${BUNDLE_FIELD} }`,
   },
 
   poolsByToken: {
@@ -172,6 +212,7 @@ export const OPERATIONS: Readonly<Record<OpName, Operation>> = {
       asToken1: pools(where: { token1: $token, totalValueLockedUSD_gt: ${MIN_TVL} }, ${POOL_ORDER}, first: 50) ${POOL_FIELDS}
       asToken0: pools(where: { token0: $token, totalValueLockedUSD_gt: ${MIN_TVL} }, ${POOL_ORDER}, first: 50) ${POOL_FIELDS}
       asPool: pools(where: { id: $token }) ${POOL_FIELDS}
+      ${BUNDLE_FIELD}
     }`,
   },
 
@@ -184,6 +225,7 @@ export const OPERATIONS: Readonly<Record<OpName, Operation>> = {
     document: `query PoolsByTokens($tokens: [Bytes!]!) {
       asToken1: pools(where: { token1_in: $tokens, totalValueLockedUSD_gt: ${MIN_TVL} }, ${POOL_ORDER}, first: 50) ${POOL_FIELDS}
       asToken0: pools(where: { token0_in: $tokens, totalValueLockedUSD_gt: ${MIN_TVL} }, ${POOL_ORDER}, first: 50) ${POOL_FIELDS}
+      ${BUNDLE_FIELD}
     }`,
   },
 
@@ -192,8 +234,12 @@ export const OPERATIONS: Readonly<Record<OpName, Operation>> = {
     capability: 'pools',
     cache: { ttl: 300, swr: 900 },
     variables: z.object({}),
+    transform: withEthPriceUsd,
+    // Candidate set ordered by real activity; the client re-ranks by reconstructed
+    // USD volume and keeps the top slice. See the threshold note above.
     document: `query TopPoolsByVolume {
-      pools(first: 50, where: { totalValueLockedUSD_gt: ${MIN_TVL}, volumeUSD_gt: ${MIN_VOLUME} }, ${POOL_ORDER}) ${POOL_FIELDS}
+      pools(first: 150, where: { totalValueLockedUSD_gt: ${MIN_TVL}, txCount_gt: ${MIN_TXNS} }, ${TOP_ORDER}) ${POOL_FIELDS}
+      ${BUNDLE_FIELD}
     }`,
   },
 

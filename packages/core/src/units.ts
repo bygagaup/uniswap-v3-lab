@@ -29,6 +29,9 @@ export type Raw = Brand<bigint, 'Raw'>;
 /** A human-readable price. Only ever produced at the display boundary. */
 export type HumanPrice = Brand<number, 'HumanPrice'>;
 
+/** A human-readable USD amount. Produced at the display boundary; may be zero. */
+export type HumanUsd = Brand<number, 'HumanUsd'>;
+
 export const MIN_TICK = -887272;
 export const MAX_TICK = 887272;
 
@@ -126,6 +129,20 @@ export const HumanPrice = {
       throw new CoreError('NEGATIVE_AMOUNT', 'price must be > 0', n);
     }
     return n as HumanPrice;
+  },
+} as const;
+
+export const HumanUsd = {
+  // Zero is a legitimate USD amount (a pool with no volume on a given day), so
+  // unlike HumanPrice this only rejects negatives and non-finite values.
+  of(n: number): HumanUsd {
+    if (!Number.isFinite(n)) {
+      throw new CoreError('NOT_FINITE', 'usd amount must be finite', n);
+    }
+    if (n < 0) {
+      throw new CoreError('NEGATIVE_AMOUNT', 'usd amount must be >= 0', n);
+    }
+    return n as HumanUsd;
   },
 } as const;
 

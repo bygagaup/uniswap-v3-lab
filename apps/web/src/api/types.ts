@@ -28,6 +28,8 @@ export interface Token {
   readonly name: string;
   /** The subgraph serialises this as a string ("6"); coerce before use. */
   readonly decimals: number | string;
+  /** Token price in ETH (BigDecimal string). Feeds USD reconstruction. */
+  readonly derivedETH?: string;
 }
 
 export interface PoolDayDatum {
@@ -40,6 +42,9 @@ export interface PoolDayDatum {
   readonly low: string;
   readonly close: string;
   readonly open: string;
+  /** Per-token volumes (BigDecimal strings). Correct even where volumeUSD is 0. */
+  readonly volumeToken0?: string;
+  readonly volumeToken1?: string;
 }
 
 export interface Pool {
@@ -57,10 +62,21 @@ export interface Pool {
   readonly token0: Token;
   readonly token1: Token;
   readonly poolDayData?: readonly PoolDayDatum[];
+  /**
+   * Chain-wide ETH/USD rate, denormalised onto each pool at the query boundary so
+   * any component holding a Pool can reconstruct USD without prop-drilling. Comes
+   * from the list's `ethPriceUsd`; see lib/usd.ts.
+   */
+  readonly ethPriceUsd?: string | null;
 }
 
 export interface PoolListResult {
   readonly pools: readonly Pool[];
+  /**
+   * Chain-wide ETH/USD rate (subgraph `Bundle.ethPriceUSD`), surfaced by the
+   * proxy's transforms. Null when the deployment has no `Bundle` entity.
+   */
+  readonly ethPriceUsd?: string | null;
 }
 
 export interface TokenListResult {

@@ -85,8 +85,16 @@ Web tests check data, not rendering. No SVG path snapshots.
 - The subgraph ID resolves on the **(chain, op) pair**, not on chain alone. `feeGrowthGlobal*X128`
   is absent from the official Uniswap schema; only patched forks expose it, and those forks in
   turn lack `ticks`. bnb and unichain each need two deployments.
-- Rank pools by **`volumeUSD`, not TVL**. TVL is inflatable via `derivedETH` — the Base top-8 was
-  once entirely fake pools with $1–3.5B TVL and near-zero volume.
+- **Never rank pools by TVL.** It is inflatable via `derivedETH` — the Base top-8 was once
+  entirely fake pools with $1–3.5B TVL and near-zero volume.
+- **`volumeUSD` is not a ranking key either, because it is not always real.** The fork subgraphs
+  gate `volumeUSD`/`feesUSD` behind a token whitelist that is unconfigured for the chain, so
+  genuine pools report `0` — 56 of Polygon's top 150. So the proxy orders the candidate set by
+  `txCount` (un-gated on-chain activity the counterfeits cannot fake cheaply) and the client
+  re-ranks by USD volume reconstructed in `packages/core/src/usd.ts` from
+  `volumeToken*`/`derivedETH`/`ethPriceUSD`. Where the subgraph's own figure is non-zero it wins:
+  it carries true per-swap prices, which a current-price estimate cannot. The two agree within
+  0.2% wherever both exist, which is what makes the reconstruction trustworthy.
 - The Graph gateway returns **`200 OK` with `{errors: [...]}`** for a dead or unsynced subgraph.
   That is a `502 UPSTREAM_GRAPHQL`, not empty data. `{data: {pools: []}}` is a successful empty
   result and must stay distinguishable — conflating them turns a broken deployment into an

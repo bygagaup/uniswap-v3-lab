@@ -3,6 +3,7 @@
  * mirrors the (chain, op, variables) the proxy itself keys on.
  */
 import { useQuery } from '@tanstack/react-query';
+import { poolVolumeUsdForRanking } from '../lib/usd.js';
 import { graphFetch, shouldRetry } from './client.js';
 import type { ChainDescriptor, ChainSlug, Pool, PoolListResult, TokenListResult } from './types.js';
 
@@ -10,6 +11,15 @@ const ADDRESS = /^0x[0-9a-fA-F]{40}$/;
 
 export function isAddress(value: string): boolean {
   return ADDRESS.test(value.trim());
+}
+
+/**
+ * Denormalises the list's chain-wide `ethPriceUsd` onto each pool, so downstream
+ * components can reconstruct USD from a Pool alone (see lib/usd.ts).
+ */
+function withEthPrice(result: PoolListResult): Pool[] {
+  const ethPriceUsd = result.ethPriceUsd ?? null;
+  return result.pools.map((pool) => ({ ...pool, ethPriceUsd }));
 }
 
 export const queryKeys = {
@@ -37,7 +47,15 @@ export function useTopPools(chain: ChainSlug) {
     queryKey: queryKeys.topPools(chain),
     queryFn: () => graphFetch<PoolListResult>(chain, 'topPoolsByVolume'),
     retry: shouldRetry,
-    select: (data) => data.pools,
+    // The proxy orders the candidate set by txCount (volumeUSD is unreliable on the
+    // fork subgraphs); rank here by reconstructed USD volume and keep the top slice.
+    select: (data) =>
+      withEthPrice(data)
+        .sort(
+          (a, b) =>
+            poolVolumeUsdForRanking(b, b.ethPriceUsd) - poolVolumeUsdForRanking(a, a.ethPriceUsd),
+        )
+        .slice(0, 50),
   });
 }
 
@@ -47,10 +65,10 @@ export function usePool(chain: ChainSlug, id: string | undefined) {
     enabled: Boolean(id),
     retry: shouldRetry,
     queryFn: async () => {
-      const { pools } = await graphFetch<PoolListResult>(chain, 'poolById', {
+      const result = await graphFetch<PoolListResult>(chain, 'poolById', {
         id: (id as string).toLowerCase(),
       });
-      return pools[0] ?? null;
+      return withEthPrice(result)[0] ?? null;
     },
   });
 }
@@ -70,10 +88,10 @@ export function useSearch(chain: ChainSlug, rawQuery: string) {
     retry: shouldRetry,
     queryFn: async (): Promise<readonly Pool[]> => {
       if (isAddress(query)) {
-        const { pools } = await graphFetch<PoolListResult>(chain, 'poolsByToken', {
+        const result = await graphFetch<PoolListResult>(chain, 'poolsByToken', {
           token: query.toLowerCase(),
         });
-        return pools;
+        return withEthPrice(result);
       }
 
       const { tokens } = await graphFetch<TokenListResult>(chain, 'tokensBySymbol', {
@@ -81,10 +99,10 @@ export function useSearch(chain: ChainSlug, rawQuery: string) {
       });
       if (tokens.length === 0) return [];
 
-      const { pools } = await graphFetch<PoolListResult>(chain, 'poolsByTokens', {
+      const result = await graphFetch<PoolListResult>(chain, 'poolsByTokens', {
         tokens: tokens.slice(0, 25).map((t) => t.id),
       });
-      return pools;
+      return withEthPrice(result);
     },
   });
 }

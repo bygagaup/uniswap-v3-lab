@@ -68,6 +68,68 @@ describe('operation registry', () => {
   });
 });
 
+/**
+ * The edge reshapes responses so the cached artifact is what the client consumes.
+ * `bundles` is the carrier for the chain-wide ETH/USD rate that USD reconstruction
+ * runs on (see packages/core/src/usd.ts), and it travels *beside* the pool lists in
+ * the document — which is exactly what makes it easy to get wrong.
+ */
+describe('response transforms', () => {
+  const BUNDLE = { bundles: [{ ethPriceUSD: '1919.902633206883' }] };
+
+  it('surfaces ethPriceUsd on every operation whose document asks for bundles', () => {
+    // Requesting `bundles` without a transform would ship the raw array to the
+    // client, and every consumer would have to reassemble it identically.
+    for (const op of opNames) {
+      if (!OPERATIONS[op].document.includes('bundles(')) continue;
+      const { transform } = OPERATIONS[op];
+      expect(transform, `${op} requests bundles but has no transform`).toBeDefined();
+      const out = transform?.({ pools: [], ...BUNDLE }) as { ethPriceUsd?: unknown };
+      expect(out.ethPriceUsd, op).toBe('1919.902633206883');
+    }
+  });
+
+  it('flattens { pools, bundles } into { pools, ethPriceUsd }', () => {
+    const out = OPERATIONS.poolById.transform?.({ pools: [{ id: '0xa' }], ...BUNDLE });
+    expect(out).toEqual({ pools: [{ id: '0xa' }], ethPriceUsd: '1919.902633206883' });
+  });
+
+  it('reports ethPriceUsd as null on a deployment with no Bundle entity', () => {
+    // Null, never 0 or "": a missing rate must stay distinguishable from a real
+    // one, or reconstruction silently values every pool at zero dollars.
+    for (const data of [{ pools: [] }, { pools: [], bundles: [] }]) {
+      const out = OPERATIONS.poolById.transform?.(data) as { ethPriceUsd: unknown };
+      expect(out.ethPriceUsd).toBeNull();
+    }
+  });
+
+  it('never mistakes the bundles row for a pool when merging aliased lists', () => {
+    // The merge walks every array-valued key, and `bundles` sits beside the pool
+    // lists. Today an id-less bundle is also caught by the `typeof id` guard — but
+    // `Bundle.id` exists in the schema (it is always "1"), so the day someone
+    // selects it, dropping the key check would put a phantom pool with id "1" into
+    // every search result. That is the shape asserted here.
+    const merged = OPERATIONS.poolsByToken.transform?.({
+      asToken1: [{ id: '0xa', totalValueLockedUSD: '10' }],
+      asToken0: [{ id: '0xb', totalValueLockedUSD: '30' }],
+      asPool: [],
+      bundles: [{ id: '1', ethPriceUSD: '1919.902633206883' }],
+    }) as { pools: { id: string }[]; ethPriceUsd: string };
+
+    expect(merged.pools.map((p) => p.id)).toEqual(['0xb', '0xa']);
+    expect(merged.ethPriceUsd).toBe('1919.902633206883');
+  });
+
+  it('de-duplicates a pool returned by more than one aliased list', () => {
+    const merged = OPERATIONS.poolsByTokens.transform?.({
+      asToken1: [{ id: '0xa', totalValueLockedUSD: '10' }],
+      asToken0: [{ id: '0xa', totalValueLockedUSD: '10' }],
+      ...BUNDLE,
+    }) as { pools: { id: string }[] };
+    expect(merged.pools).toHaveLength(1);
+  });
+});
+
 describe('chain routing', () => {
   it('routes fees and ticks to DIFFERENT deployments on bnb and unichain', () => {
     // The whole point of per-(chain, op) resolution. If these ever coincide,

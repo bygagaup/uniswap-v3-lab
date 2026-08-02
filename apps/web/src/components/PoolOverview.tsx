@@ -1,6 +1,7 @@
 import type { Pool } from '../api/types.js';
 import { formatFeeTier, formatPrice, formatUsd, pairLabel, shortAddress } from '../lib/format.js';
 import { currentPrice } from '../lib/pool.js';
+import { dailyFeesUsd, dailyVolumeUsd } from '../lib/usd.js';
 
 function Tile({ label, value }: { label: string; value: string }) {
   return (
@@ -11,11 +12,18 @@ function Tile({ label, value }: { label: string; value: string }) {
   );
 }
 
+function usdOrDash(value: number | null): string {
+  return value === null ? '—' : formatUsd(value);
+}
+
 export function PoolOverview({ pool }: { pool: Pool }) {
   const today = pool.poolDayData?.[0];
   // Price is computed by core from sqrtPrice, not read from the subgraph's
   // derived field — the whole point of the rewrite is that this number is ours.
   const priceOfToken0 = currentPrice(pool, 'token1PerToken0');
+  // Reconstructed when the fork subgraph reports 0; see lib/usd.ts.
+  const volume = today ? dailyVolumeUsd(pool, today, pool.ethPriceUsd) : null;
+  const fees = today ? dailyFeesUsd(pool, today, pool.ethPriceUsd) : null;
 
   return (
     <section className="card">
@@ -36,8 +44,8 @@ export function PoolOverview({ pool }: { pool: Pool }) {
           }
         />
         <Tile label="TVL" value={formatUsd(pool.totalValueLockedUSD)} />
-        <Tile label="24h volume" value={today ? formatUsd(today.volumeUSD) : '—'} />
-        <Tile label="24h fees" value={today ? formatUsd(today.feesUSD) : '—'} />
+        <Tile label="24h volume" value={usdOrDash(volume)} />
+        <Tile label="24h fees" value={usdOrDash(fees)} />
       </div>
     </section>
   );

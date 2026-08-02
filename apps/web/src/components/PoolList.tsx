@@ -1,9 +1,12 @@
 import type { Pool } from '../api/types.js';
 import { formatFeeTier, formatUsd, pairLabel } from '../lib/format.js';
+import { dailyVolumeUsd } from '../lib/usd.js';
 
 function dailyVolume(pool: Pool): string {
   const today = pool.poolDayData?.[0];
-  return today ? formatUsd(today.volumeUSD) : '—';
+  if (!today) return '—';
+  const usd = dailyVolumeUsd(pool, today, pool.ethPriceUsd);
+  return usd === null ? '—' : formatUsd(usd);
 }
 
 export function PoolList({
