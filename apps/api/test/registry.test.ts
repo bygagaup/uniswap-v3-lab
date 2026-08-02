@@ -4,7 +4,14 @@
  */
 import { parse } from 'graphql';
 import { describe, expect, it } from 'vitest';
-import { type ChainSlug, chainConfigs, describeChains, subgraphIdFor } from '../src/chains.js';
+import {
+  type ChainConfig,
+  type ChainSlug,
+  chainCapabilities,
+  chainConfigs,
+  describeChains,
+  subgraphIdFor,
+} from '../src/chains.js';
 import { HEAVY_OPERATIONS, isKnownOperation, OPERATIONS, type OpName } from '../src/operations.js';
 
 const NO_ENV: Record<string, string | undefined> = {};
@@ -131,10 +138,10 @@ describe('response transforms', () => {
 });
 
 describe('chain routing', () => {
-  it('routes fees and ticks to DIFFERENT deployments on bnb and unichain', () => {
+  it('routes fees and ticks to DIFFERENT deployments on the split chains', () => {
     // The whole point of per-(chain, op) resolution. If these ever coincide,
     // one of the two datasets is silently missing.
-    for (const chain of ['bnb', 'unichain'] as ChainSlug[]) {
+    for (const chain of ['optimism', 'arbitrum', 'bnb', 'unichain'] as ChainSlug[]) {
       const fees = subgraphIdFor(NO_ENV, chain, 'poolHourData');
       const ticks = subgraphIdFor(NO_ENV, chain, 'ticksByPool');
       expect(fees).toBeTruthy();
@@ -165,20 +172,28 @@ describe('chain routing', () => {
     expect(chainConfigs(NO_ENV)).toHaveLength(7);
   });
 
-  it('grants feeGrowth exactly to the chains with a backtest deployment', () => {
+  it('grants feeGrowth to every chain — each now has a deployment carrying it', () => {
     const caps = new Map(describeChains(NO_ENV).map((d) => [d.slug, new Set(d.capabilities)]));
-    for (const chain of [
-      'ethereum',
-      'polygon',
-      'base',
-      'optimism',
-      'bnb',
-      'unichain',
-    ] as ChainSlug[]) {
-      expect(caps.get(chain)?.has('feeGrowth'), `${chain} should support backtest`).toBe(true);
+    for (const config of chainConfigs(NO_ENV)) {
+      expect(
+        caps.get(config.slug)?.has('feeGrowth'),
+        `${config.slug} should support backtest`,
+      ).toBe(true);
     }
-    for (const chain of ['arbitrum'] as ChainSlug[]) {
-      expect(caps.get(chain)?.has('feeGrowth'), `${chain} should NOT support backtest`).toBe(false);
-    }
+  });
+
+  it('withholds feeGrowth from a chain whose deployment does not carry it', () => {
+    // The rule that greys the backtest out, exercised against a synthetic config
+    // because no configured chain is in this state any more. `feeGrowthGlobal*`
+    // is absent from Uniswap's own schema, so a chain on a stock deployment with
+    // no fees override must NOT advertise backtesting — it would 502 on the first
+    // poolHourData call instead of arriving disabled.
+    const arbitrum = chainConfigs(NO_ENV).find((c) => c.slug === 'arbitrum');
+    expect(arbitrum).toBeDefined();
+    const { opOverrides: _fees, ...stock } = arbitrum as ChainConfig;
+    expect(chainCapabilities(stock)).not.toContain('feeGrowth');
+    // Everything else still resolves off the default deployment.
+    expect(chainCapabilities(stock)).toContain('pools');
+    expect(chainCapabilities(stock)).toContain('ticks');
   });
 });

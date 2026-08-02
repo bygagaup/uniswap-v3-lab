@@ -17,7 +17,10 @@
  *   unichain  BCfy6Vw9… has feeGrowthGlobal but no ticks entity at all.
  *   optimism  ACse8kMD… (Messari fork) carries feeGrowthGlobal, so its fees come
  *             from that deployment and pools/ticks from the default one.
- *   arbitrum  no deployment with feeGrowthGlobal found, so backtesting is off.
+ *   arbitrum  7dew3WpR… is our own deployment, indexed because the registry had
+ *             no candidate exposing feeGrowthGlobal. It answers poolHourData and
+ *             nothing else — no Pool fields, no ticks, no tokens — so it serves
+ *             exactly that one operation and pools/ticks stay on the default.
  *
  * So fees come from one deployment and everything else from another. This is
  * also the real reason the predecessor's predecessor disabled backtesting on
@@ -116,6 +119,13 @@ export function chainConfigs(env: ChainEnv): readonly ChainConfig[] {
         'SUBGRAPH_ID_ARBITRUM',
         'Fo8QBLpEGfXHWkGMD3jSM4vVLk4JxvxxQD3v3U4fsrbh',
       ),
+      opOverrides: {
+        poolHourData: envOr(
+          env,
+          'SUBGRAPH_ID_ARBITRUM_FEES',
+          '7dew3WpR5BTRdQ5HaZqkA1E2UZg4VeFbdAHWLHzAjM5P',
+        ),
+      },
     },
     {
       slug: 'bnb',
@@ -188,27 +198,37 @@ export interface ChainDescriptor {
 
 /**
  * What each chain can actually do, derived from which deployments are
- * configured — never from a hardcoded list. The UI greys out backtesting on
- * arbitrum because this says so, not because someone remembered to.
+ * configured — never from a hardcoded list. Every chain currently backtests, but
+ * the derivation stays: the next chain added starts without feeGrowth until a
+ * deployment that carries it is configured, and the UI greys the control out on
+ * that basis rather than because someone remembered to.
  */
 export function describeChains(env: ChainEnv): readonly ChainDescriptor[] {
-  return chainConfigs(env).map((config) => {
-    const capabilities = new Set<Capability>();
-    for (const op of Object.values(OPERATIONS)) {
-      if (subgraphIdFor(env, config.slug, op.name)) capabilities.add(op.capability);
-    }
-    // A chain with no feeGrowth-bearing deployment cannot be backtested, and
-    // the override is exactly how we express that it has one.
-    if (!config.opOverrides?.poolHourData && !FEE_GROWTH_CHAINS.has(config.slug)) {
-      capabilities.delete('feeGrowth');
-    }
-    return {
-      slug: config.slug,
-      chainId: config.chainId,
-      label: config.label,
-      capabilities: [...capabilities].sort(),
-    };
-  });
+  return chainConfigs(env).map((config) => ({
+    slug: config.slug,
+    chainId: config.chainId,
+    label: config.label,
+    capabilities: chainCapabilities(config),
+  }));
+}
+
+/**
+ * The capability derivation itself, taking a config rather than a slug: no
+ * configured chain lacks feeGrowth any more, so the branch that withholds it is
+ * reachable only from a synthetic config — which is exactly how the test covers
+ * it. Keeping this callable is what stops that rule from rotting unobserved.
+ */
+export function chainCapabilities(config: ChainConfig): readonly Capability[] {
+  const capabilities = new Set<Capability>();
+  for (const op of Object.values(OPERATIONS)) {
+    if (config.opOverrides?.[op.name] ?? config.defaultSubgraphId) capabilities.add(op.capability);
+  }
+  // A chain with no feeGrowth-bearing deployment cannot be backtested, and the
+  // override is exactly how we express that it has one.
+  if (!config.opOverrides?.poolHourData && !FEE_GROWTH_CHAINS.has(config.slug)) {
+    capabilities.delete('feeGrowth');
+  }
+  return [...capabilities].sort();
 }
 
 /**

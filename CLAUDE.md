@@ -84,7 +84,9 @@ Web tests check data, not rendering. No SVG path snapshots.
 - **GET, not POST**, so the edge CDN can cache with per-operation TTLs.
 - The subgraph ID resolves on the **(chain, op) pair**, not on chain alone. `feeGrowthGlobal*X128`
   is absent from the official Uniswap schema; only patched forks expose it, and those forks in
-  turn lack `ticks`. bnb and unichain each need two deployments.
+  turn lack `ticks`. optimism, arbitrum, bnb and unichain each need two deployments — fees from
+  one, pools and ticks from the other. Arbitrum's is our own indexed deployment, because the
+  registry had no candidate; it answers `poolHourData` and nothing else.
 - **Never rank pools by TVL.** It is inflatable via `derivedETH` — the Base top-8 was once
   entirely fake pools with $1–3.5B TVL and near-zero volume.
 - **`volumeUSD` is not a ranking key either, because it is not always real.** The fork subgraphs

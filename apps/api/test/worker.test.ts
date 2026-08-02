@@ -173,12 +173,13 @@ describe('secret hygiene', () => {
 });
 
 describe('meta', () => {
-  it('reports capabilities per chain, excluding feeGrowth where absent', async () => {
+  it('reports capabilities per chain, feeGrowth included wherever a deployment carries it', async () => {
     const res = await call('https://poollab.test/api/meta/chains');
     expect(res.status).toBe(200);
     const { chains } = await res.json<{ chains: { slug: string; capabilities: string[] }[] }>();
     expect(chains).toHaveLength(7);
-    expect(chains.find((c) => c.slug === 'optimism')?.capabilities).toContain('feeGrowth');
-    expect(chains.find((c) => c.slug === 'ethereum')?.capabilities).toContain('feeGrowth');
+    for (const chain of chains) {
+      expect(chain.capabilities, `${chain.slug}`).toContain('feeGrowth');
+    }
   });
 });
