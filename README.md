@@ -27,6 +27,12 @@ apps/web        Vite + React SPA
 
 Requires Node 22.23.1 (see `.tool-versions`) and pnpm via corepack.
 
+The API reads its gateway key from `apps/api/.dev.vars` (gitignored):
+
+```sh
+echo 'GRAPH_API_KEY=<your key>' > apps/api/.dev.vars
+```
+
 ```sh
 pnpm install
 pnpm --filter @poollab/api dev     # Worker on :8787
@@ -37,6 +43,14 @@ pnpm --filter @poollab/web dev     # Vite on :5173, proxying /api to the Worker
 pnpm test         # property + golden + differential, all offline
 pnpm typecheck
 pnpm lint
+```
+
+The `Makefile` wraps the same commands; `make help` lists them.
+
+```sh
+make install
+make dev          # both of the above at once, Ctrl-C stops both
+make check        # lint, typecheck, test
 ```
 
 ## Deploy
