@@ -1,10 +1,17 @@
-import { CoreError, finite, type HourResult, runBacktest, summarize } from '@poollab/core';
+import {
+  CoreError,
+  finite,
+  type HourResult,
+  HumanUsd,
+  runBacktest,
+  summarize,
+} from '@poollab/core';
 import { scaleLinear } from '@visx/scale';
 import { useMemo } from 'react';
 import { useHours } from '../api/hours.js';
 import type { ChainSlug, Pool } from '../api/types.js';
 import { formatUsd } from '../lib/format.js';
-import type { StrategyModel } from '../lib/model.js';
+import type { SimulationModel } from '../lib/model.js';
 import { useWidth } from '../lib/useWidth.js';
 
 function Tile({
@@ -94,7 +101,7 @@ export function BacktestView({
 }: {
   chain: ChainSlug;
   pool: Pool;
-  model: StrategyModel;
+  model: SimulationModel;
   canBacktest: boolean;
 }) {
   const [ref, width] = useWidth<HTMLDivElement>();
@@ -114,7 +121,9 @@ export function BacktestView({
         candles: hours.data,
         currentSqrtPrice: model.currentSqrtPrice,
         tvl: {
-          usd: Number(pool.totalValueLockedUSD),
+          // Throws a CoreError on a subgraph figure that isn't a usable amount;
+          // the catch below turns that into a message rather than a NaN chart.
+          usd: HumanUsd.of(Number(pool.totalValueLockedUSD)),
           token0: Number(pool.totalValueLockedToken0),
           token1: Number(pool.totalValueLockedToken1),
         },
@@ -162,9 +171,9 @@ export function BacktestView({
                 hint="Fees earned as a fraction of the position's value at the start of the window."
               />
               <Tile
-                label="Time in range"
+                label="Active share"
                 value={`${(result.summary.avgActiveBps / 100).toFixed(0)}%`}
-                hint="Share of the window the price stayed inside the range and the position earned fees."
+                hint="Share of the window the position earned fees, estimated from how much of each hourly candle's tick span fell inside the range — not measured time."
               />
               <Tile
                 label="Total return"

@@ -10,6 +10,7 @@
 import { describe, expect, it } from 'vitest';
 import { runBacktest, summarize } from '../../src/backtest.js';
 import {
+  HumanUsd,
   positionFromNotional,
   priceAtTick,
   priceScale,
@@ -22,6 +23,8 @@ import { getTickAtSqrtRatio } from '../../src/tickMath.js';
 import fixtures from '../fixtures/hours.mainnet.json' with { type: 'json' };
 
 const { pool, candles } = fixtures;
+// The fixture is plain JSON; the USD figure crosses into the branded type here.
+const tvl = { ...pool.tvl, usd: HumanUsd.of(pool.tvl.usd) };
 
 const key = poolKey({
   token0: { address: pool.token0.id, symbol: pool.token0.symbol, decimals: pool.token0.decimals },
@@ -48,7 +51,7 @@ describe('backtest on real USDC/WETH hourly data', () => {
   });
 
   it('produces finite, non-negative, plausible fees', () => {
-    const rows = runBacktest({ scale, position, candles, tvl: pool.tvl, currentSqrtPrice });
+    const rows = runBacktest({ scale, position, candles, tvl, currentSqrtPrice });
     expect(rows.length).toBe(candles.length);
 
     for (const row of rows) {
@@ -69,7 +72,7 @@ describe('backtest on real USDC/WETH hourly data', () => {
   });
 
   it('the daily rollup preserves the fee total', () => {
-    const rows = runBacktest({ scale, position, candles, tvl: pool.tvl, currentSqrtPrice });
+    const rows = runBacktest({ scale, position, candles, tvl, currentSqrtPrice });
     const summary = summarize(rows);
     // Reconstruct the total from the hourly feeValue and compare.
     const hourlyTotal = rows.reduce((sum, r) => sum + r.feeValue, 0);
@@ -85,12 +88,8 @@ describe('backtest on real USDC/WETH hourly data', () => {
       range: tickRange(-880_000 as Tick, 880_000 as Tick),
       notional: 100_000,
     });
-    const tight = summarize(
-      runBacktest({ scale, position, candles, tvl: pool.tvl, currentSqrtPrice }),
-    );
-    const full = summarize(
-      runBacktest({ scale, position: wide, candles, tvl: pool.tvl, currentSqrtPrice }),
-    );
+    const tight = summarize(runBacktest({ scale, position, candles, tvl, currentSqrtPrice }));
+    const full = summarize(runBacktest({ scale, position: wide, candles, tvl, currentSqrtPrice }));
     // Only meaningful if the tight position stayed in range for a good share.
     if (tight.avgActiveBps > 3000) {
       expect(tight.feeRoi).toBeGreaterThan(full.feeRoi);

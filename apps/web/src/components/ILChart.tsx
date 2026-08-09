@@ -1,12 +1,12 @@
 import { finite } from '@poollab/core';
 import { scaleLinear } from '@visx/scale';
 import { formatPrice } from '../lib/format.js';
-import type { StrategyModel } from '../lib/model.js';
+import type { SimulationModel } from '../lib/model.js';
 
 const HEIGHT = 160;
 const MARGIN = { top: 12, right: 16, bottom: 28, left: 64 };
 
-export function ILChart({ model, width }: { model: StrategyModel; width: number }) {
+export function ILChart({ model, width }: { model: SimulationModel; width: number }) {
   const innerW = Math.max(width - MARGIN.left - MARGIN.right, 10);
   const innerH = HEIGHT - MARGIN.top - MARGIN.bottom;
 

@@ -32,7 +32,7 @@ export const searchSchema = z.object({
   /** Range boundaries as ticks. Absent until a pool defaults them. */
   lower: z.coerce.number().int().optional(),
   upper: z.coerce.number().int().optional(),
-  /** A second comparison range (S2). Both present enables the overlay. */
+  /** The comparison range. Both bounds present enables the overlay. */
   lower2: z.coerce.number().int().optional(),
   upper2: z.coerce.number().int().optional(),
   /** Invert the price orientation (flip which token the axis is priced in). */

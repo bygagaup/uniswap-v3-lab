@@ -75,7 +75,13 @@ export function priceGrid(args: {
   return { prices, current: args.currentPrice, spacing };
 }
 
-export type StrategyKind =
+/**
+ * Which curve to sample. `v3` and `v2` are strategies — positions actually held
+ * in a pool; the `hodl*` variants are baselines, held for comparison and never
+ * minted. See CONTEXT.md; both are drawn by the same function on the same grid,
+ * which is why one union covers them.
+ */
+export type CurveKind =
   | { readonly kind: 'v3'; readonly range: TickRange }
   | { readonly kind: 'v2' }
   | { readonly kind: 'hodlBase' }
@@ -115,17 +121,17 @@ function v3Curve(
  */
 export function payoffCurve(args: {
   scale: PriceScale;
-  strategy: StrategyKind;
+  curve: CurveKind;
   notional: number;
   entryPrice: HumanPrice;
   grid: PriceGrid;
 }): readonly CurvePoint[] {
-  const { scale, strategy, notional, entryPrice, grid } = args;
+  const { scale, curve, notional, entryPrice, grid } = args;
   const p0 = entryPrice;
 
-  switch (strategy.kind) {
+  switch (curve.kind) {
     case 'v3':
-      return v3Curve(scale, strategy.range, notional, entryPrice, grid).points;
+      return v3Curve(scale, curve.range, notional, entryPrice, grid).points;
     case 'v2':
       return v3Curve(scale, FULL_RANGE, notional, entryPrice, grid).points;
     case 'hodlBase':
@@ -137,8 +143,8 @@ export function payoffCurve(args: {
     case 'hodl5050':
       return grid.prices.map((price) => ({ price, value: (notional / 2) * (1 + price / p0) }));
     default: {
-      const exhaustive: never = strategy;
-      throw new CoreError('NOT_FINITE', 'unknown strategy', exhaustive);
+      const exhaustive: never = curve;
+      throw new CoreError('NOT_FINITE', 'unknown curve kind', exhaustive);
     }
   }
 }
@@ -195,8 +201,12 @@ export function impermanentLossCurve(args: {
 
 export interface LeveredPoint {
   readonly price: number;
-  /** Equity value: the LP position net of debt, plus any hedge PnL. */
-  readonly value: number;
+  /**
+   * Equity: the LP position net of debt, plus any hedge PnL. Deliberately not
+   * called `value` — a CurvePoint's `value` is gross position value, and the
+   * two are plotted on one axis. See CONTEXT.md.
+   */
+  readonly equity: number;
   /** Health in [0, 1], or null when unlevered (no debt, cannot be liquidated). */
   readonly margin: number | null;
 }
@@ -235,7 +245,7 @@ export function leveragedCurve(args: {
     const pnl = hedgePnl(hedge, entryPrice, p);
     return {
       price,
-      value: lpValue - debt + pnl,
+      equity: lpValue - debt + pnl,
       margin: marginRatio({ positionValue: lpValue, debt }),
     };
   });

@@ -75,13 +75,13 @@ describe('payoffCurve', () => {
       fc.property(anySetup, (setup) => {
         const g = grid(setup);
         const base = values(
-          payoffCurve({ ...setup, strategy: { kind: 'hodlBase' }, notional: 10_000, grid: g }),
+          payoffCurve({ ...setup, curve: { kind: 'hodlBase' }, notional: 10_000, grid: g }),
         );
         const quote = values(
-          payoffCurve({ ...setup, strategy: { kind: 'hodlQuote' }, notional: 10_000, grid: g }),
+          payoffCurve({ ...setup, curve: { kind: 'hodlQuote' }, notional: 10_000, grid: g }),
         );
         const split = values(
-          payoffCurve({ ...setup, strategy: { kind: 'hodl5050' }, notional: 10_000, grid: g }),
+          payoffCurve({ ...setup, curve: { kind: 'hodl5050' }, notional: 10_000, grid: g }),
         );
 
         for (const v of quote) expect(v).toBeCloseTo(10_000, 6);
@@ -102,7 +102,7 @@ describe('payoffCurve', () => {
     fc.assert(
       fc.property(anySetup, (setup) => {
         const g = grid(setup);
-        const v2 = payoffCurve({ ...setup, strategy: { kind: 'v2' }, notional: 10_000, grid: g });
+        const v2 = payoffCurve({ ...setup, curve: { kind: 'v2' }, notional: 10_000, grid: g });
         for (const point of v2) {
           const expected = 10_000 * Math.sqrt(point.price / setup.entryPrice);
           expect(Math.abs(point.value - expected) / expected).toBeLessThan(0.02);
@@ -119,7 +119,7 @@ describe('payoffCurve', () => {
         const v = values(
           payoffCurve({
             ...setup,
-            strategy: { kind: 'v3', range: setup.range },
+            curve: { kind: 'v3', range: setup.range },
             notional: 10_000,
             grid: g,
           }),
@@ -146,7 +146,7 @@ describe('payoffCurve', () => {
         const v = values(
           payoffCurve({
             ...setup,
-            strategy: { kind: 'v3', range: setup.range },
+            curve: { kind: 'v3', range: setup.range },
             notional: 10_000,
             grid: g,
           }),
@@ -203,8 +203,8 @@ describe('relativeDifference', () => {
     const setup = { scale, range: tickRange(-600 as Tick, 600 as Tick), entryPrice };
     const g1 = priceGrid({ scale, currentPrice: entryPrice, count: 50 });
     const g2 = priceGrid({ scale, currentPrice: entryPrice, count: 60 });
-    const a = payoffCurve({ ...setup, strategy: { kind: 'v2' }, notional: 1000, grid: g1 });
-    const b = payoffCurve({ ...setup, strategy: { kind: 'hodl5050' }, notional: 1000, grid: g2 });
+    const a = payoffCurve({ ...setup, curve: { kind: 'v2' }, notional: 1000, grid: g1 });
+    const b = payoffCurve({ ...setup, curve: { kind: 'hodl5050' }, notional: 1000, grid: g2 });
     expect(() => relativeDifference(a, b)).toThrow(CoreError);
   });
 });

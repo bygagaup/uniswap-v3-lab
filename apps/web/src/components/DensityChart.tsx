@@ -11,7 +11,7 @@ import { scaleLinear } from '@visx/scale';
 import { useMemo, useState } from 'react';
 import type { TickRow } from '../api/ticks.js';
 import { formatPrice } from '../lib/format.js';
-import type { StrategyModel } from '../lib/model.js';
+import type { SimulationModel } from '../lib/model.js';
 
 const HEIGHT = 220;
 const MARGIN = { top: 12, right: 16, bottom: 28, left: 16 };
@@ -22,7 +22,7 @@ export function DensityChart({
   poolLiquidity,
   width,
 }: {
-  model: StrategyModel;
+  model: SimulationModel;
   ticks: readonly TickRow[];
   /** The pool's reported active liquidity, to seed a windowed tick set. */
   poolLiquidity: string;

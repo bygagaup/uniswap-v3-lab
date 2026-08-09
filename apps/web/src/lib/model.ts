@@ -1,9 +1,9 @@
 /**
- * Builds the strategy model the charts render, entirely from core. Every number
- * here came out of packages/core; this file only arranges them and catches the
- * CoreErrors that a pathological input (a notional too small to represent, a
- * range the pool can't hold) throws, turning them into a message rather than a
- * crash.
+ * Builds the simulation model the charts render, entirely from core. Every
+ * number here came out of packages/core; this file only arranges them and
+ * catches the CoreErrors that a pathological input (a notional too small to
+ * represent, a range the pool can't hold) throws, turning them into a message
+ * rather than a crash.
  */
 import {
   CoreError,
@@ -36,7 +36,8 @@ import {
 import type { Pool } from '../api/types.js';
 import { poolKeyFromApi } from './pool.js';
 
-export interface StrategyModel {
+/** Everything computed for one set of inputs — every curve, not one strategy. */
+export interface SimulationModel {
   readonly scale: PriceScale;
   readonly orientation: Orientation;
   readonly baseSymbol: string;
@@ -60,7 +61,7 @@ export interface StrategyModel {
   readonly notional: number;
   readonly leverage: number;
   readonly hedge: Hedge;
-  /** A second comparison range (S2), when both bounds are set. */
+  /** The comparison range, when both of its bounds are set. */
   readonly compare: {
     readonly range: TickRange;
     readonly lowerPrice: number;
@@ -108,7 +109,7 @@ function chooseOrientation(pool: Pool, inverted: boolean): Orientation {
   return base === 'token1PerToken0' ? 'token0PerToken1' : 'token1PerToken0';
 }
 
-export type ModelResult = { ok: true; model: StrategyModel } | { ok: false; error: string };
+export type ModelResult = { ok: true; model: SimulationModel } | { ok: false; error: string };
 
 export function buildModel(pool: Pool, rawInput: ModelInput): ModelResult {
   const input = {
@@ -149,10 +150,10 @@ export function buildModel(pool: Pool, rawInput: ModelInput): ModelResult {
     const shared = { scale, notional: input.notional, entryPrice, grid } as const;
 
     const curves = {
-      v3: payoffCurve({ ...shared, strategy: { kind: 'v3', range } }),
-      v2: payoffCurve({ ...shared, strategy: { kind: 'v2' } }),
-      hodl5050: payoffCurve({ ...shared, strategy: { kind: 'hodl5050' } }),
-      hodlBase: payoffCurve({ ...shared, strategy: { kind: 'hodlBase' } }),
+      v3: payoffCurve({ ...shared, curve: { kind: 'v3', range } }),
+      v2: payoffCurve({ ...shared, curve: { kind: 'v2' } }),
+      hodl5050: payoffCurve({ ...shared, curve: { kind: 'hodl5050' } }),
+      hodlBase: payoffCurve({ ...shared, curve: { kind: 'hodlBase' } }),
     };
     const il = impermanentLossCurve({ scale, range, notional: input.notional, entryPrice, grid });
 
@@ -170,9 +171,9 @@ export function buildModel(pool: Pool, rawInput: ModelInput): ModelResult {
       notional: input.notional,
     });
 
-    // Leverage treats `notional` as the LP position size and the equity as
+    // `notional` is the LP position size, so the equity behind it is
     // notional/leverage — you hold the same position but put down 1/L of it.
-    // The hedge is a perp of `hedgePct` of the position.
+    // The hedge is a perp sized at `hedgePct` of that position.
     const hedge: Hedge = {
       side: input.hedgeSide,
       notional: input.notional * input.hedgePct,
@@ -199,7 +200,7 @@ export function buildModel(pool: Pool, rawInput: ModelInput): ModelResult {
           range: range2,
           lowerPrice: priceAtTick(scale, range2.lower),
           upperPrice: priceAtTick(scale, range2.upper),
-          curve: payoffCurve({ ...shared, strategy: { kind: 'v3', range: range2 } }),
+          curve: payoffCurve({ ...shared, curve: { kind: 'v3', range: range2 } }),
         }
       : null;
 

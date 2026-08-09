@@ -2,7 +2,7 @@ import { finite } from '@poollab/core';
 import { scaleLinear } from '@visx/scale';
 import { useRef, useState } from 'react';
 import { formatPrice, formatUsd } from '../lib/format.js';
-import type { StrategyModel } from '../lib/model.js';
+import type { SimulationModel } from '../lib/model.js';
 
 const HEIGHT = 340;
 const MARGIN = { top: 16, right: 16, bottom: 34, left: 64 };
@@ -25,7 +25,7 @@ export function PayoffChart({
   width,
   onRangeCommit,
 }: {
-  model: StrategyModel;
+  model: SimulationModel;
   width: number;
   onRangeCommit: (edge: Edge, price: number) => void;
 }) {
@@ -38,7 +38,8 @@ export function PayoffChart({
   const prices = model.grid.prices;
   const xDomain: [number, number] = [prices[0] as number, prices[prices.length - 1] as number];
 
-  const leveredValues = model.levered ? model.levered.curve.map((p) => p.value) : [];
+  // Equity, not gross position value — the two share this axis. See CONTEXT.md.
+  const leveredValues = model.levered ? model.levered.curve.map((p) => p.equity) : [];
   const compareValues = model.compare ? model.compare.curve.map((p) => p.value) : [];
   const allValues = [
     ...model.curves.v3,
@@ -83,7 +84,7 @@ export function PayoffChart({
   const valueTicks = y.ticks(4);
 
   const curves: {
-    key: keyof StrategyModel['curves'];
+    key: keyof SimulationModel['curves'];
     color: string;
     dash?: string;
     label: string;
@@ -127,7 +128,7 @@ export function PayoffChart({
               );
             })}
 
-          {/* second-range (S2) band, dimmer and behind */}
+          {/* comparison-range band, dimmer and behind */}
           {model.compare && (
             <rect
               x={Math.min(finite(x(model.compare.lowerPrice)), finite(x(model.compare.upperPrice)))}
@@ -203,7 +204,7 @@ export function PayoffChart({
             />
           ))}
 
-          {/* second-range (S2) payoff curve */}
+          {/* comparison-range payoff curve */}
           {model.compare && (
             <path
               d={linePath(
@@ -222,7 +223,7 @@ export function PayoffChart({
           {model.levered && (
             <path
               d={linePath(
-                model.levered.curve,
+                model.levered.curve.map((p) => ({ price: p.price, value: p.equity })),
                 (p) => x(p),
                 (v) => y(v),
               )}
@@ -297,7 +298,7 @@ export function PayoffChart({
                 display: 'inline-block',
               }}
             />
-            <span className="muted">V3 range S2</span>
+            <span className="muted">V3 range — comparison</span>
           </span>
         )}
         {model.levered && (

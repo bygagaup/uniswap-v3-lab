@@ -107,33 +107,6 @@ describe('positionFromNotional', () => {
     );
   });
 
-  it('treats leverage as a multiplier on notional', () => {
-    fc.assert(
-      fc.property(
-        anySetup,
-        anyNotional,
-        fc.double({ min: 1, max: 10, noNaN: true }),
-        (setup, notional, leverage) => {
-          const levered = positionOrSkip({
-            ...setup,
-            price: setup.entryPrice,
-            notional,
-            leverage,
-          });
-          const plain = positionOrSkip({
-            ...setup,
-            price: setup.entryPrice,
-            notional: notional * leverage,
-          });
-          const drift =
-            Math.abs(Number(levered.liquidity) - Number(plain.liquidity)) / Number(plain.liquidity);
-          expect(drift).toBeLessThan(Math.max(1e-9, 2 * sizingQuantum(plain)));
-        },
-      ),
-      { numRuns: 200 },
-    );
-  });
-
   it('exposes the integer quantization instead of hiding it', () => {
     const fine = priceScale(testPool(6, 18), 'token0PerToken1');
     const position = positionFromNotional({
@@ -166,15 +139,13 @@ describe('positionFromNotional', () => {
     expect(positionValue({ scale, position: viable, price }).value).toBeCloseTo(1e12, -6);
   });
 
-  it('rejects a non-positive notional or leverage', () => {
+  it('rejects a non-positive notional', () => {
     const scale = priceScale(testPool(6, 18), 'token1PerToken0');
     const range = tickRange(-600 as Tick, 600 as Tick);
     const price = priceAtTick(scale, 0 as Tick);
     expect(() => positionOrSkip({ scale, range, price, notional: 0 })).toThrow(CoreError);
     expect(() => positionOrSkip({ scale, range, price, notional: -1 })).toThrow(CoreError);
-    expect(() => positionOrSkip({ scale, range, price, notional: 1, leverage: 0 })).toThrow(
-      CoreError,
-    );
+    expect(() => positionOrSkip({ scale, range, price, notional: Number.NaN })).toThrow(CoreError);
   });
 });
 

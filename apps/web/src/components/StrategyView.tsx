@@ -33,7 +33,7 @@ export interface StrategyHandlers {
   onToggleInvert: () => void;
   onLeverage: (lev: number) => void;
   onHedge: (side: 'none' | 'long' | 'short') => void;
-  /** null clears the S2 comparison range. */
+  /** null clears the comparison range. */
   onCompare: (range: { lower: number; upper: number } | null) => void;
 }
 
@@ -143,7 +143,7 @@ export function StrategyView({
     setDraftMax(null);
   };
 
-  // S2 comparison range: convert two prices to snapped, ordered ticks.
+  // Comparison range: convert two prices to snapped, ordered ticks.
   const commitCompare = (priceA: number, priceB: number) => {
     const spacing = model.scale.pool.tickSpacing;
     const toTick = (p: number) =>
@@ -159,7 +159,7 @@ export function StrategyView({
     if (model.compare) {
       handlers.onCompare(null);
     } else {
-      // Default S2 to a wider range than S1, so the comparison is meaningful.
+      // Default the comparison range wider than the position range, so it says something.
       const width = model.range.upper - model.range.lower;
       const mid = (model.range.lower + model.range.upper) / 2;
       handlers.onCompare({
@@ -375,7 +375,7 @@ export function StrategyView({
           )}
         </div>
 
-        {/* S2 comparison range */}
+        {/* comparison range */}
         <div style={{ marginTop: 14 }}>
           <button type="button" className="chip" onClick={toggleCompare}>
             {model.compare ? 'Remove comparison range' : '+ Compare a second range'}
@@ -384,7 +384,7 @@ export function StrategyView({
             <div className="strategy-controls" style={{ marginTop: 10 }}>
               <div className="field">
                 <label htmlFor="s2-min" className="label">
-                  S2 min price
+                  Comparison min price
                 </label>
                 <span className="input-with-step">
                   <button
@@ -398,7 +398,7 @@ export function StrategyView({
                       commitCompare(adjustPrice(p, -1), other);
                       setDraftMin2(null);
                     }}
-                    aria-label="Decrease S2 min price"
+                    aria-label="Decrease comparison min price"
                   >
                     −
                   </button>
@@ -462,7 +462,7 @@ export function StrategyView({
                       commitCompare(adjustPrice(p, 1), other);
                       setDraftMin2(null);
                     }}
-                    aria-label="Increase S2 min price"
+                    aria-label="Increase comparison min price"
                   >
                     +
                   </button>
@@ -470,7 +470,7 @@ export function StrategyView({
               </div>
               <div className="field">
                 <label htmlFor="s2-max" className="label">
-                  S2 max price
+                  Comparison max price
                 </label>
                 <span className="input-with-step">
                   <button
@@ -484,7 +484,7 @@ export function StrategyView({
                       commitCompare(other, adjustPrice(p, -1));
                       setDraftMax2(null);
                     }}
-                    aria-label="Decrease S2 max price"
+                    aria-label="Decrease comparison max price"
                   >
                     −
                   </button>
@@ -548,7 +548,7 @@ export function StrategyView({
                       commitCompare(other, adjustPrice(p, 1));
                       setDraftMax2(null);
                     }}
-                    aria-label="Increase S2 max price"
+                    aria-label="Increase comparison max price"
                   >
                     +
                   </button>

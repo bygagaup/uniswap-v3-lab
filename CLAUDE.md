@@ -12,56 +12,54 @@ Uniswap V3 LP strategy simulator and backtester. Greenfield — **not** a fork.
 
 One Worker serves both the SPA and `/api` (`apps/api/wrangler.toml`, `run_worker_first`).
 
+`CONTEXT.md` is the glossary — what the words mean. `docs/adr/` holds the decisions and
+why they were made. The rules below are the rules; where one has a reason worth the
+space, it links to the ADR carrying it.
+
 ## Non-negotiable rules
 
 1. **No math outside `packages/core`.** If a component computes a price, a tick, or a
    token amount, it belongs in core with a test.
 2. **No BigInt→float conversion outside `convert.ts`.** A quantity crosses the boundary
-   exactly once, as late as possible, and never crosses back.
+   exactly once, as late as possible, and never crosses back. Why BigInt at all:
+   [ADR-0001](docs/adr/0001-bigint-through-the-core.md).
 3. **A failing golden test gets investigated, never regenerated.** The oracle is an
    independent `decimal.js` implementation, not our own past output. Disagreement means
    one of the two is wrong.
 4. **Core throws, never degrades.** No `NaN`, no `0` meaning "couldn't compute", no `null`
    in place of a number. `CoreError` with a code, or a value.
 5. **`GRAPH_API_KEY` never leaves `apps/api`.** CI greps the built bundle for it.
+6. **Unsuffixed value fields are in the quote token; `Usd` means dollars.** The two never
+   mix in one sum, and USD amounts carry the `HumanUsd` type. See "Numéraire" in
+   `CONTEXT.md`.
 
-## Why the math is BigInt
+## Traps that look like details
 
-Computing this in `Number` is the trap this core exists to avoid:
-
-- `parseInt()` on a uint256 `feeGrowthGlobalX128` discards ~205 bits, and `feeGrowthGlobal`
-  wraps mod 2^256 by design — a float cannot represent either fact.
 - `Math.pow(1.0001, tick)` does not agree with on-chain `sqrtPriceX96` near the boundaries.
 - `tickSpacing = feeTier / 50` is correct for the 0.05/0.3/1% tiers and **wrong for 0.01%**.
-- Real pools carry `L ≈ 1e21…1e25`; a double loses whole tokens at that magnitude.
+- `feeGrowthGlobal` wraps mod 2^256 by design, so a position's earnings come from the
+  *difference* between two readings, never from either alone.
+- "Active share" is an estimate from a candle's tick span, not measured time in range.
+  Do not relabel it as time.
 
 Everything here is implemented from the Uniswap V3 whitepaper and the core contracts' published
 behavior. MIT-licensed — see `LICENSE`.
 
 ## Tick math
 
-`src/tickMath.constants.ts` is **generated**, not transcribed. `scripts/gen-tick-constants.ts`
-computes `round(2^128 / 1.0001^(2^i/2))` from the definition at 1024-bit working precision. A test
-re-runs the generator and asserts the committed file is byte-identical, and pins eight of the
-constants against exactly-computed rationals. Do not hand-edit.
-
-**The rounding mode is load-bearing.** The table is rounded to *nearest*, not floored; the two
-differ for most bits (bit 1 is `0x…213a` nearest, `0x…2139` floored). A floored table drifts from
-real pool state. All twenty generated constants match the deployed pools exactly.
+`src/tickMath.constants.ts` is **generated**, not transcribed — do not hand-edit it, regenerate
+with `scripts/gen-tick-constants.ts`. **The rounding mode is load-bearing:** the table is rounded
+to *nearest*, not floored, and a floored table drifts from real pool state. Why, and how it is
+verified: [ADR-0002](docs/adr/0002-generated-tick-constants-rounded-to-nearest.md).
 
 `getSqrtRatioAtTick` reproduces the pool's bit-decomposition *including its rounding*, because
 pool and position state is defined by that result — a "more accurate" value would disagree with
 the chain, which is the wrong kind of correct.
 
-`getTickAtSqrtRatio` is a binary search over `getSqrtRatioAtTick`, not a port of the contract's
-log2 approximation. The approximation exists because gas costs money; we are in a browser, and
-21 iterations of obviously-correct code is worth more than the microseconds.
-
-**One deliberate divergence from the pool and the SDK:** both require
-`sqrtPriceX96 < MAX_SQRT_RATIO`, since a live pool can never sit at the maximum. We accept it, so
-`getTickAtSqrtRatio ∘ getSqrtRatioAtTick` is the identity over *every* tick — the totality that
-the round-trip property and everything built on it rely on. A simulator evaluates the boundary;
-a pool never reaches it. `test/differential/v3-sdk.test.ts` pins this as a decision, not a drift.
+`getTickAtSqrtRatio` is a binary search, and **accepts `sqrtPriceX96 === MAX_SQRT_RATIO`, which
+the pool and the SDK both reject.** That is deliberate: it makes the tick round-trip total.
+`test/differential/v3-sdk.test.ts` pins it as a decision, not a drift —
+[ADR-0003](docs/adr/0003-total-tick-math.md).
 
 ## Testing layers
 
@@ -79,24 +77,16 @@ Web tests check data, not rendering. No SVG path snapshots.
 
 ## Data layer facts worth not rediscovering
 
-- The client sends `{chain, op, variables}` — **never GraphQL text**. An open GraphQL proxy on
-  your own Graph key is a free faucet for anyone who opens the Network tab.
-- **GET, not POST**, so the edge CDN can cache with per-operation TTLs.
-- The subgraph ID resolves on the **(chain, op) pair**, not on chain alone. `feeGrowthGlobal*X128`
-  is absent from the official Uniswap schema; only patched forks expose it, and those forks in
-  turn lack `ticks`. optimism, arbitrum, bnb and unichain each need two deployments — fees from
-  one, pools and ticks from the other. Arbitrum's is our own indexed deployment, because the
-  registry had no candidate; it answers `poolHourData` and nothing else.
-- **Never rank pools by TVL.** It is inflatable via `derivedETH` — the Base top-8 was once
-  entirely fake pools with $1–3.5B TVL and near-zero volume.
-- **`volumeUSD` is not a ranking key either, because it is not always real.** The fork subgraphs
-  gate `volumeUSD`/`feesUSD` behind a token whitelist that is unconfigured for the chain, so
-  genuine pools report `0` — 56 of Polygon's top 150. So the proxy orders the candidate set by
-  `txCount` (un-gated on-chain activity the counterfeits cannot fake cheaply) and the client
-  re-ranks by USD volume reconstructed in `packages/core/src/usd.ts` from
-  `volumeToken*`/`derivedETH`/`ethPriceUSD`. Where the subgraph's own figure is non-zero it wins:
-  it carries true per-swap prices, which a current-price estimate cannot. The two agree within
-  0.2% wherever both exist, which is what makes the reconstruction trustworthy.
+- The client sends `{chain, op, variables}` — **never GraphQL text** — and the proxy answers on
+  **GET, not POST**. Adding a query is a server-side change.
+  [ADR-0004](docs/adr/0004-the-proxy-takes-operation-names-over-get.md).
+- The subgraph ID resolves on the **(chain, op) pair**, not on chain alone: fees come from one
+  deployment, pools and ticks from another, and Arbitrum's fee deployment is our own.
+  [ADR-0005](docs/adr/0005-subgraph-resolves-on-chain-and-operation.md).
+- **Never rank pools by TVL, and never by `volumeUSD` alone** — the first is inflatable, the
+  second reads `0` for genuine pools on the fork subgraphs. Order by `txCount`, then re-rank by
+  USD reconstructed in `packages/core/src/usd.ts`.
+  [ADR-0006](docs/adr/0006-rank-by-txcount-and-reconstruct-usd.md).
 - The Graph gateway returns **`200 OK` with `{errors: [...]}`** for a dead or unsynced subgraph.
   That is a `502 UPSTREAM_GRAPHQL`, not empty data. `{data: {pools: []}}` is a successful empty
   result and must stay distinguishable — conflating them turns a broken deployment into an

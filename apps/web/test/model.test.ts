@@ -107,8 +107,8 @@ describe('leverage & hedge', () => {
     const near = (r.model.levered?.curve ?? []).reduce((a, b) =>
       Math.abs(b.price - r.model.entryPrice) < Math.abs(a.price - r.model.entryPrice) ? b : a,
     );
-    expect(near.value).toBeGreaterThan(2000);
-    expect(near.value).toBeLessThan(4500);
+    expect(near.equity).toBeGreaterThan(2000);
+    expect(near.equity).toBeLessThan(4500);
   });
 
   it('a hedge alone (no leverage) still produces an overlay', () => {
@@ -119,14 +119,14 @@ describe('leverage & hedge', () => {
   });
 });
 
-describe('comparison range (S2)', () => {
+describe('comparison range', () => {
   it('has no compare overlay without a second range', () => {
     const r = buildModel(USDC_WETH, { notional: 10_000, inverted: false });
     if (!r.ok) throw new Error(r.error);
     expect(r.model.compare).toBeNull();
   });
 
-  it('builds a second V3 curve on the shared grid when S2 is set', () => {
+  it('builds a second V3 curve on the shared grid when the comparison range is set', () => {
     const r = buildModel(USDC_WETH, {
       notional: 10_000,
       inverted: false,

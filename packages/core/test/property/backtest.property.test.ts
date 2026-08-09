@@ -5,7 +5,7 @@ import { CoreError } from '../../src/errors.js';
 import { positionFromNotional, tickRange } from '../../src/position.js';
 import { priceAtTick, priceScale } from '../../src/price.js';
 import { getSqrtRatioAtTick } from '../../src/tickMath.js';
-import type { Tick } from '../../src/units.js';
+import { HumanUsd, type Tick } from '../../src/units.js';
 import { testPool } from '../helpers/pools.js';
 
 const pool = testPool(6, 18); // USDC / WETH geometry
@@ -46,7 +46,7 @@ function makeCandles(count: number, increment: bigint, flat: boolean): HourCandl
 }
 
 const currentSqrt = getSqrtRatioAtTick(CENTER);
-const tvl = { usd: 1_000_000, token0: 500_000, token1: 260 };
+const tvl = { usd: HumanUsd.of(1_000_000), token0: 500_000, token1: 260 };
 
 describe('runBacktest', () => {
   it('the first hour earns zero fees and is kept', () => {

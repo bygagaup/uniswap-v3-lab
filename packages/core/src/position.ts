@@ -99,25 +99,23 @@ const SIZING_LIQUIDITY = 10n ** 24n;
 /**
  * Build a position worth `notional` quote tokens at `price`.
  *
+ * `notional` is the size of the LP position itself, before any leverage — see
+ * "Notional" in CONTEXT.md. Financing is not a liquidity-math question: a
+ * caller running leverage sizes the notional to `equity · leverage` and tracks
+ * the debt separately, which is what `leveragedCurve` does.
+ *
  * Value is linear in liquidity, so this values a reference L once and scales.
- * `leverage` simply multiplies the notional — the borrowed portion is a
- * financing question, not a liquidity-math one, and is accounted for elsewhere.
  */
 export function positionFromNotional(args: {
   scale: PriceScale;
   price: HumanPrice;
   range: TickRange;
   notional: number;
-  leverage?: number;
 }): Position {
   const { scale, price, range, notional } = args;
-  const leverage = args.leverage ?? 1;
 
   if (!Number.isFinite(notional) || notional <= 0) {
     throw new CoreError('NEGATIVE_AMOUNT', 'notional must be a positive, finite amount', notional);
-  }
-  if (!Number.isFinite(leverage) || leverage <= 0) {
-    throw new CoreError('NEGATIVE_AMOUNT', 'leverage must be positive and finite', leverage);
   }
 
   const sqrtRange = sqrtRangeOf(range);
@@ -141,11 +139,10 @@ export function positionFromNotional(args: {
     });
   }
 
-  const scaled = (Number(SIZING_LIQUIDITY) * (notional * leverage)) / referenceValue;
+  const scaled = (Number(SIZING_LIQUIDITY) * notional) / referenceValue;
   if (!Number.isFinite(scaled) || scaled < 1) {
     throw new CoreError('NOT_FINITE', 'notional does not resolve to representable liquidity', {
       notional,
-      leverage,
     });
   }
 
@@ -164,7 +161,7 @@ export function positionFromNotional(args: {
   // worth a fraction of what was asked — a wide range on an 18-decimal token
   // priced at 1e20 against a 6-decimal one will do it. Returning that quietly
   // is precisely the class of silent wrongness this core exists to avoid.
-  const target = notional * leverage;
+  const target = notional;
   const achieved = positionValue({ scale, position, price }).value;
   if (Math.abs(achieved - target) / target > 1e-6) {
     throw new CoreError(
@@ -282,8 +279,8 @@ export function impermanentLoss(args: {
  * A directional perp overlay, in the scale's quote token.
  *
  * A short flattens an LP's upside and offsets its downside IL; a long amplifies.
- * `notional` is the equity committed to the hedge and `leverage` its multiplier,
- * so the exposure is `notional · leverage`.
+ * `notional` is the size of the hedge before leverage, on the same footing as
+ * an LP position's notional, so the exposure it carries is `notional · leverage`.
  */
 export interface Hedge {
   readonly side: 'long' | 'short' | 'none';

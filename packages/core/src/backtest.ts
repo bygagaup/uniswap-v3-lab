@@ -21,7 +21,13 @@ import {
   priceScale,
   tickAtPrice,
 } from './price.js';
-import { FeeGrowthX128, type SqrtPriceX96, type Tick } from './units.js';
+import {
+  FeeGrowthX128,
+  type HumanUsd,
+  HumanUsd as HumanUsdCtor,
+  type SqrtPriceX96,
+  type Tick,
+} from './units.js';
 
 export interface HourCandle {
   readonly periodStartUnix: number;
@@ -39,15 +45,16 @@ export interface HourResult {
   readonly activeBps: number;
   readonly fee0: number;
   readonly fee1: number;
+  /** In the scale's quote token. Unsuffixed value fields always are. */
   readonly feeValue: number;
-  readonly feeUsd: number;
+  readonly feeUsd: HumanUsd;
   readonly cumulativeFeeValue: number;
   readonly positionValue: number;
   readonly totalValue: number;
 }
 
 export interface Tvl {
-  readonly usd: number;
+  readonly usd: HumanUsd;
   readonly token0: number;
   readonly token1: number;
 }
@@ -171,7 +178,7 @@ export function runBacktest(params: BacktestParams): readonly HourResult[] {
       fee0,
       fee1,
       feeValue,
-      feeUsd,
+      feeUsd: HumanUsdCtor.of(feeUsd),
       cumulativeFeeValue,
       positionValue: posValue,
       totalValue: posValue + cumulativeFeeValue,
@@ -186,7 +193,7 @@ export interface DayResult {
   readonly fee0: number;
   readonly fee1: number;
   readonly feeValue: number;
-  readonly feeUsd: number;
+  readonly feeUsd: HumanUsd;
   readonly avgActiveBps: number;
   readonly positionValue: number;
   readonly cumulativeFeeValue: number;
@@ -214,7 +221,7 @@ export function aggregateDaily(rows: readonly HourResult[]): readonly DayResult[
         fee0: hours.reduce((s, h) => s + h.fee0, 0),
         fee1: hours.reduce((s, h) => s + h.fee1, 0),
         feeValue: hours.reduce((s, h) => s + h.feeValue, 0),
-        feeUsd: hours.reduce((s, h) => s + h.feeUsd, 0),
+        feeUsd: HumanUsdCtor.of(hours.reduce((s, h) => s + h.feeUsd, 0)),
         avgActiveBps: hours.reduce((s, h) => s + h.activeBps, 0) / hours.length,
         positionValue: last.positionValue,
         cumulativeFeeValue: last.cumulativeFeeValue,
@@ -224,7 +231,7 @@ export function aggregateDaily(rows: readonly HourResult[]): readonly DayResult[
 
 export interface BacktestSummary {
   readonly feeValue: number;
-  readonly feeUsd: number;
+  readonly feeUsd: HumanUsd;
   readonly feeRoi: number;
   readonly apr: number;
   readonly assetReturn: number;
@@ -246,7 +253,7 @@ export function summarize(rows: readonly HourResult[]): BacktestSummary {
   if (rows.length === 0) {
     return {
       feeValue: 0,
-      feeUsd: 0,
+      feeUsd: HumanUsdCtor.of(0),
       feeRoi: 0,
       apr: 0,
       assetReturn: 0,
@@ -263,7 +270,7 @@ export function summarize(rows: readonly HourResult[]): BacktestSummary {
   const start = first.positionValue;
 
   const feeValue = last.cumulativeFeeValue;
-  const feeUsd = rows.reduce((s, r) => s + r.feeUsd, 0);
+  const feeUsd = HumanUsdCtor.of(rows.reduce((s, r) => s + r.feeUsd, 0));
   const feeRoi = start > 0 ? feeValue / start : 0;
 
   const elapsed = last.timestamp - first.timestamp;

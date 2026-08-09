@@ -4,7 +4,7 @@ A Uniswap V3 liquidity-provider strategy simulator and backtester.
 
 Pick a pool on any supported chain, set a price range and position size, and see what the
 position would be worth across the price curve — against HODL baselines and an unbounded V2
-position — plus a backtest over hourly data showing accrued fees, fee APR, and time in range.
+position — plus a backtest over hourly data showing accrued fees, fee APR, and active share.
 
 ## Status
 

@@ -92,9 +92,9 @@ describe('leveragedCurve', () => {
           entryPrice: s.entryPrice,
           grid,
         });
-        const atEntry = curve[1] as { value: number };
+        const atEntry = curve[1] as { equity: number };
         // Bounded by the position's integer sizing granularity, not an epsilon.
-        expect(Math.abs(atEntry.value - 10_000) / 10_000).toBeLessThan(1e-4);
+        expect(Math.abs(atEntry.equity - 10_000) / 10_000).toBeLessThan(1e-4);
       }),
       { numRuns: 150 },
     );
@@ -142,7 +142,7 @@ describe('leveragedCurve', () => {
             entryPrice: s.entryPrice,
             grid,
           });
-          const vals = c.map((p) => p.value);
+          const vals = c.map((p) => p.equity);
           return Math.max(...vals) - Math.min(...vals);
         };
         expect(spread(3)).toBeGreaterThan(spread(1) - 1e-6);
